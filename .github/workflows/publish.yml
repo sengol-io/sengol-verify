@@ -1,0 +1,32 @@
+# Publishes sengol-verify to PyPI through a trusted publisher (OIDC): no API
+# token is stored anywhere. PyPI must list this repository, this workflow file
+# name and no environment as the trusted publisher for the project.
+name: publish
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Build sdist and wheel
+        run: uv build
+      - name: Guard the wheel against a sengol dependency
+        run: |
+          uv run --no-project --with ./dist/*.whl python - <<'PY'
+          import importlib.metadata as m
+          reqs = m.requires("sengol-verify") or []
+          assert not any(r.split()[0].lower().startswith("sengol") for r in reqs), reqs
+          print("requires:", reqs)
+          PY
+      - name: Publish
+        run: uv publish

@@ -1,0 +1,202 @@
+{
+  "tenant_id": "acme-bank",
+  "agent_id": "loan-underwriter-bot",
+  "records": [
+    {
+      "record_id": "01a07c57-0a05-7e79-aed0-eb65aa52c8ef",
+      "agent_id": "loan-underwriter-bot",
+      "agent_version": "1.0.0",
+      "tenant_id": "acme-bank",
+      "timestamp": "2026-09-07T14:47:54.117123Z",
+      "eval_result": {
+        "result_id": "8467c717-b35b-4004-a6ff-033cf96ce8f4",
+        "agent_id": "loan-underwriter-bot",
+        "agent_version": "1.0.0",
+        "timestamp": "2026-09-07T14:47:54.117087Z",
+        "scores": [
+          {
+            "evaluator": "PIIEvaluator",
+            "passed": true,
+            "failure_mode": null,
+            "reason": "fixture score",
+            "confidence": 1.0,
+            "latency_ms": 0.0,
+            "tokens_used": 0,
+            "cost_usd": 0.0,
+            "trace_id": null
+          }
+        ],
+        "overall_passed": true,
+        "policies": [
+          "OSFI_E23"
+        ],
+        "saturation_warning": false
+      },
+      "policies": [
+        "OSFI_E23"
+      ],
+      "controlbook_id": "cb-osfi-e23",
+      "controlbook_version": "2026.1",
+      "eval_run_id": null,
+      "sequence_number": 1,
+      "prev_hash": "",
+      "key_id": "test-hmac-key-1",
+      "payload_version": 3,
+      "hmac_signature": "116fad8bf551fe5e68d4e2a09eb3c7cffc0f63c04932a8fe84ab08222897e2e9",
+      "trace_id": null,
+      "span_id": null,
+      "signing_backend": "local",
+      "authority_model_version": null
+    },
+    {
+      "record_id": "01a07c57-0a06-7a33-bdc3-2cf602b1a4b3",
+      "agent_id": "loan-underwriter-bot",
+      "agent_version": "1.0.0",
+      "tenant_id": "acme-bank",
+      "timestamp": "2026-09-07T14:47:54.117586Z",
+      "eval_result": {
+        "result_id": "696eed87-818e-42bc-ad31-4fe52812c442",
+        "agent_id": "loan-underwriter-bot",
+        "agent_version": "1.0.0",
+        "timestamp": "2026-09-07T14:47:54.117536Z",
+        "scores": [
+          {
+            "evaluator": "PIIEvaluator",
+            "passed": true,
+            "failure_mode": null,
+            "reason": "fixture score",
+            "confidence": 1.0,
+            "latency_ms": 0.0,
+            "tokens_used": 0,
+            "cost_usd": 0.0,
+            "trace_id": null
+          }
+        ],
+        "overall_passed": true,
+        "policies": [
+          "OSFI_E23"
+        ],
+        "saturation_warning": false
+      },
+      "policies": [
+        "OSFI_E23"
+      ],
+      "controlbook_id": "cb-osfi-e23",
+      "controlbook_version": "2026.1",
+      "eval_run_id": null,
+      "sequence_number": 2,
+      "prev_hash": "bbd07c9fd46acfc6756f3e988a96b48bea8d9b7d7ef44140ea1c9ca1172e9cd7",
+      "key_id": "test-hmac-key-1",
+      "payload_version": 3,
+      "hmac_signature": "ad49acefc35e5d3770ba9644378c1db214efa3d31bd243a1aea9e13427711c17",
+      "trace_id": null,
+      "span_id": null,
+      "signing_backend": "local",
+      "authority_model_version": null
+    },
+    {
+      "record_id": "01a07c57-0a07-7be0-a596-76e101a9655b",
+      "agent_id": "loan-underwriter-bot",
+      "agent_version": "1.0.0",
+      "tenant_id": "acme-bank",
+      "timestamp": "2026-09-07T14:47:54.117756Z",
+      "eval_result": {
+        "result_id": "54b348b3-9ebe-4fd4-9aad-e5cea51c97c3",
+        "agent_id": "loan-underwriter-bot",
+        "agent_version": "1.0.0",
+        "timestamp": "2026-09-07T14:47:54.117741Z",
+        "scores": [
+          {
+            "evaluator": "PIIEvaluator",
+            "passed": true,
+            "failure_mode": null,
+            "reason": "fixture score",
+            "confidence": 1.0,
+            "latency_ms": 0.0,
+            "tokens_used": 0,
+            "cost_usd": 0.0,
+            "trace_id": null
+          }
+        ],
+        "overall_passed": true,
+        "policies": [
+          "OSFI_E23"
+        ],
+        "saturation_warning": false
+      },
+      "policies": [
+        "OSFI_E23"
+      ],
+      "controlbook_id": "cb-osfi-e23",
+      "controlbook_version": "2026.1",
+      "eval_run_id": null,
+      "sequence_number": 3,
+      "prev_hash": "769c536b3b4fa6d3e4c1a1bc1e05cd3c97c011a0fdeffae3e353cb075439f474",
+      "key_id": "test-hmac-key-1",
+      "payload_version": 3,
+      "hmac_signature": "a4f8994304f34348a753b8cae999ae2ae9f5db7e9d6189e044dd5cf3b0b08992",
+      "trace_id": null,
+      "span_id": null,
+      "signing_backend": "local",
+      "authority_model_version": null
+    }
+  ],
+  "countersignatures": [
+    {
+      "countersig_id": "cs-01a07c57-0a05-7e79-aed0-eb65aa52c8ef",
+      "record_id": "01a07c57-0a05-7e79-aed0-eb65aa52c8ef",
+      "tenant_id": "acme-bank",
+      "agent_id": "loan-underwriter-bot",
+      "payload_hash": "bbd07c9fd46acfc6756f3e988a96b48bea8d9b7d7ef44140ea1c9ca1172e9cd7",
+      "algorithm": "ed25519",
+      "key_id": "test-ed25519-key-1",
+      "signature": "NkATSY3HJfjxpS8q53/dLdwylu9ufUjKq/ps3JFhELe28jzgVgMRMpwmtzwHgS+l1hfWtCNG8K5Dz8BCY5Y4DA=="
+    },
+    {
+      "countersig_id": "cs-01a07c57-0a06-7a33-bdc3-2cf602b1a4b3",
+      "record_id": "01a07c57-0a06-7a33-bdc3-2cf602b1a4b3",
+      "tenant_id": "acme-bank",
+      "agent_id": "loan-underwriter-bot",
+      "payload_hash": "769c536b3b4fa6d3e4c1a1bc1e05cd3c97c011a0fdeffae3e353cb075439f474",
+      "algorithm": "ed25519",
+      "key_id": "test-ed25519-key-1",
+      "signature": "oEHb9JGAKW8zToPgi3TXRf2rjbAFj91nMxd5PTtVn9UZGDdUzTMZCCmNRl25U/3VWYtkWgv7YxqWNiByOYRbBQ=="
+    },
+    {
+      "countersig_id": "cs-01a07c57-0a07-7be0-a596-76e101a9655b",
+      "record_id": "01a07c57-0a07-7be0-a596-76e101a9655b",
+      "tenant_id": "acme-bank",
+      "agent_id": "loan-underwriter-bot",
+      "payload_hash": "4fd6582e7463c128cf5ee9c3b88a6b89c32a4936b742df4fcd8f1a0a7c4b74e4",
+      "algorithm": "ed25519",
+      "key_id": "test-ed25519-key-1",
+      "signature": "m00yIGT6JtSkopIHDjNg4srGYvgZYCWtRl4zjU7QL1KV1I4AhajFfYa10RbJfC2nxy1oUY9uXZChZS4xiSx9DQ=="
+    }
+  ],
+  "anchor_receipts": [
+    {
+      "anchor_id": "anchor-1",
+      "tenant_id": "acme-bank",
+      "agent_id": "loan-underwriter-bot",
+      "merkle_root": "274beb91b3854c084255618bb38e8cf100f1ac2e72f991f9818a6e4e71dc2e95",
+      "leaf_count": 3,
+      "seq_low": 1,
+      "seq_high": 3,
+      "leaf_hashes": [
+        "bbd07c9fd46acfc6756f3e988a96b48bea8d9b7d7ef44140ea1c9ca1172e9cd7",
+        "769c536b3b4fa6d3e4c1a1bc1e05cd3c97c011a0fdeffae3e353cb075439f474",
+        "4fd6582e7463c128cf5ee9c3b88a6b89c32a4936b742df4fcd8f1a0a7c4b74e4"
+      ],
+      "tsa_receipt": null,
+      "tsa_url": null,
+      "rekor_log_id": null
+    }
+  ],
+  "public_keys": {
+    "test-ed25519-key-1": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAv/R8lCRzpQYyFjVWCWuIl3oE04rn+JhIYyAdyeOjGcg=\n-----END PUBLIC KEY-----\n",
+    "hmac_material": {
+      "test-hmac-key-1": "not-a-real-secret-do-not-reuse"
+    }
+  },
+  "pending_countersignatures": 0
+}

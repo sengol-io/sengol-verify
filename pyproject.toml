@@ -1,0 +1,44 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sengol-verify"
+version = "2.0.0"
+description = "Standalone, offline verifier for sengol signed evidence bundles"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.11"
+authors = [{ name = "Sengol" }]
+keywords = ["sengol", "audit", "evidence", "verification", "offline"]
+classifiers = [
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Security",
+]
+dependencies = ["cryptography>=41"]
+
+[project.scripts]
+sengol-verify = "sengol_verify.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/sengol/sengol-verify"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sengol_verify"]
+
+[dependency-groups]
+dev = ["pytest>=8", "pytest-timeout>=2", "ruff>=0.6"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--timeout=60"

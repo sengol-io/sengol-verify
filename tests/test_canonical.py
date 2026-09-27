@@ -156,3 +156,29 @@ def test_canonical_payload_matches_record_method():
     raw = {"agent_id": "a", "tenant_id": "t", "payload_version": 1}
     rec = Record(raw, "AuthorityModelRecord")
     assert canonical_payload("AuthorityModelRecord", 1, rec) == rec.canonical_payload()
+
+
+def test_every_audit_subtype_maps_to_its_own_family():
+    """A subtype missing from the map would canonicalize as `AuditRecord`
+    and fail its own genuine HMAC; these are the ones sengol signs under
+    their own family name."""
+    from sengol_verify.canonical import family_for
+
+    assert family_for({"record_type": "sengol.audit.trace_reveal"}) == "TraceRevealRecord"
+    assert family_for({"record_type": "sengol.registration.agent"}) == "AgentRegistrationRecord"
+    assert family_for({"record_type": "sengol.governance.change"}) == "GovernanceChangeRecord"
+    assert family_for({"record_type": "sengol.sod.decision"}) == "SoDDecisionRecord"
+    assert family_for({}) == "AuditRecord"
+
+
+def test_hmac_check_covers_version_1_records():
+    """A version-1 record carries an HMAC like any other; a tampered one
+    fails the HMAC step instead of being skipped."""
+    from sengol_verify.verify import _check_hmac
+
+    f = next(x for x in _FIXTURES if x["family"] == "AuditRecord" and x["version"] == 1)
+    material = {"hmac_material": {f["raw"]["key_id"]: f["hmac_key"]}}
+    genuine = Record(dict(f["raw"]), "AuditRecord")
+    assert _check_hmac([genuine], material).result == "PASS"
+    forged = Record({**f["raw"], "hmac_signature": "0" * 64}, "AuditRecord")
+    assert _check_hmac([forged], material).result == "FAIL"

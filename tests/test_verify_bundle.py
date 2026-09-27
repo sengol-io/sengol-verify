@@ -105,3 +105,18 @@ def test_directory_with_wrong_number_of_json_files_raises(tmp_path):
 
     with pytest.raises(BundleFormatError):
         load_bundle(tmp_path)
+
+
+def test_record_with_no_canonical_form_fails_instead_of_raising(tmp_path):
+    """An integer beyond 2**53 has no RFC 8785 form, so no signer produced
+    the record as it stands: the verdict is FAIL, not a traceback."""
+    bundle = json.loads((_FIXTURES / "bundle.json").read_text())
+    bundle["records"][0]["sequence_number_extra"] = 2**60
+    path = tmp_path / "unencodable.json"
+    path.write_text(json.dumps(bundle))
+
+    result = verify_bundle_file(path)
+    assert result.verdict == "FAIL"
+    step = next(s for s in result.step_results if s.check == "payload_hash_integrity")
+    assert step.result == "FAIL"
+    assert bundle["records"][0]["record_id"] in step.detail

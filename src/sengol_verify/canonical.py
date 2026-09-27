@@ -168,7 +168,17 @@ RECORD_TYPE_TO_FAMILY: dict[str, str] = {
 
 
 def family_for(raw: dict) -> str:
-    """The canonical-function family for a raw record dict."""
+    """The canonical-function family for a raw record dict.
+
+    ``EvaluationRunRecord``, ``CertificationRecord``, ``GoldScoreRecord``,
+    ``SaturationEvent`` and the four regression records (``ProductionFailureRecord``,
+    ``RegressionCaseRecord``, ``RegressionCaseRetirementRecord``,
+    ``ProductionFailureWaiverRecord``) carry no ``record_type`` field at all —
+    each lives outside the audit chain, in its own table — so none belongs in
+    ``RECORD_TYPE_TO_FAMILY``. A caller reconstructing one of these passes its
+    family to ``Record(raw, family)`` directly, as
+    ``scripts/crosscheck_canonical.py`` does.
+    """
     return RECORD_TYPE_TO_FAMILY.get(raw.get("record_type"), "AuditRecord")
 
 

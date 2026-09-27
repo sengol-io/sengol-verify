@@ -101,6 +101,10 @@ def test_crosscheck_fixtures_reproduce_real_sengol_bytes_and_hmac():
         "TombstoneRecord",
         "EvaluationRunRecord",
         "CertificationRecord",
+        "ProductionFailureRecord",
+        "RegressionCaseRecord",
+        "RegressionCaseRetirementRecord",
+        "ProductionFailureWaiverRecord",
     }
     for f in _FIXTURES:
         rec = Record(f["raw"], f["family"])
@@ -123,6 +127,41 @@ def test_certification_record_supersedes_is_sorted_by_its_own_bytes():
     rec_a = Record(raw, "CertificationRecord")
     rec_b = Record(reordered, "CertificationRecord")
     assert rec_a.canonical_payload() == rec_b.canonical_payload()
+
+
+def test_regression_case_binding_reference_is_unsigned_but_config_hash_is_not():
+    """CaseBinding.UNSIGNED_FIELDS (config, reference) travel with the fixture
+    but never enter the signed bytes; config_hash/evaluator do."""
+    case = next(f for f in _FIXTURES if f["family"] == "RegressionCaseRecord")
+    binding = case["raw"]["bindings"][0]
+    assert binding["reference"] and binding["config"]
+    parsed = json.loads(case["canonical"])
+    parsed_binding = parsed["record"]["bindings"][0]
+    assert "reference" not in parsed_binding and "config" not in parsed_binding
+    assert parsed_binding["config_hash"] == binding["config_hash"]
+    assert parsed_binding["reference_hash"] == binding["reference_hash"]
+
+
+def test_tamper_on_each_regression_family_breaks_the_hmac():
+    """One field per new family, mutated: proof each is actually inside the
+    signature, not decorative (spec success criterion 4)."""
+    tampers = {
+        "ProductionFailureRecord": ("failure_mode", "TAMPERED_MODE"),
+        "RegressionCaseRecord": ("promoted_by", "someone-else"),
+        "RegressionCaseRetirementRecord": ("reason", "tampered reason"),
+        "ProductionFailureWaiverRecord": ("waived_by", "someone-else"),
+    }
+    for family, (field, new_value) in tampers.items():
+        f = next(x for x in _FIXTURES if x["family"] == family)
+        rec = Record(f["raw"], family)
+        assert _hmac_hex(f["hmac_key"], rec.canonical_payload()) == f["raw"]["hmac_signature"]
+
+        tampered_raw = dict(f["raw"], **{field: new_value})
+        tampered = Record(tampered_raw, family)
+        assert tampered.canonical_payload() != f["canonical"], family
+        assert (
+            _hmac_hex(f["hmac_key"], tampered.canonical_payload()) != f["raw"]["hmac_signature"]
+        ), family
 
 
 def test_tamper_on_signed_field_breaks_the_hmac():

@@ -18,6 +18,7 @@ from sengol.core.types import (
     AuditRecord,
     AuthorityModelRecord,
     AuthorizationDecisionRecord,
+    CaseBinding,
     CaseResult,
     CertificationRecord,
     EvalManifestEntry,
@@ -26,6 +27,10 @@ from sengol.core.types import (
     EvaluationRunRecord,
     GoldScoreRecord,
     JudgeModelCard,
+    ProductionFailureRecord,
+    ProductionFailureWaiverRecord,
+    RegressionCaseRecord,
+    RegressionCaseRetirementRecord,
     SaturationEvent,
     TenantStatusChangeRecord,
     TombstoneRecord,
@@ -308,6 +313,63 @@ def main() -> None:
     ).sign("hmac-key")
     cert = cert.model_copy(update={"evidence_pack_id": "pack-1"})
     _check(cert, family="CertificationRecord")
+
+    # The four regression records (spec §"production failure -> regression
+    # suite"). None carries a record_type field, so each is checked with an
+    # explicit family, the same way GoldScoreRecord/SaturationEvent are above.
+    failure = ProductionFailureRecord(
+        agent_id=AGENT,
+        tenant_id=TENANT,
+        audit_record_id="rec-1",
+        trace_id="trace-1",
+        failure_mode="QUOTED_STALE_RATE",
+        first_failure_span_id="span-1",
+        open_code_note_hash="sha256:" + "1" * 64,
+        reviewer_id="reviewer-1",
+        key_id="k1",
+    ).sign("hmac-key")
+    _check(failure, family="ProductionFailureRecord")
+
+    # RegressionCaseRecord — CaseBinding.UNSIGNED_FIELDS (config, reference),
+    # populated with real values so the nested exclusion is exercised.
+    case = RegressionCaseRecord(
+        agent_id=AGENT,
+        tenant_id=TENANT,
+        failure_id=str(failure.failure_id),
+        input_hash="sha256:" + "2" * 64,
+        bindings=[
+            CaseBinding(
+                evaluator="Faithfulness",
+                config={"threshold": 0.9},
+                config_hash="sha256:" + "3" * 64,
+                reference="the reference answer",
+                reference_hash="sha256:" + "4" * 64,
+            )
+        ],
+        promoted_by="dev-1",
+        key_id="k1",
+    ).sign("hmac-key")
+    _check(case, family="RegressionCaseRecord")
+
+    retirement = RegressionCaseRetirementRecord(
+        agent_id=AGENT,
+        tenant_id=TENANT,
+        case_id=str(case.case_id),
+        reason="agent redesigned; case no longer applicable",
+        retired_by="reviewer-2",
+        key_id="k1",
+    ).sign("hmac-key")
+    _check(retirement, family="RegressionCaseRetirementRecord")
+
+    waiver = ProductionFailureWaiverRecord(
+        agent_id=AGENT,
+        tenant_id=TENANT,
+        failure_id=str(failure.failure_id),
+        reason="cannot be replayed offline (requires live market data)",
+        waived_by="reviewer-3",
+        key_id="k1",
+    ).sign("hmac-key")
+    _check(waiver, family="ProductionFailureWaiverRecord")
 
 
 if __name__ == "__main__":

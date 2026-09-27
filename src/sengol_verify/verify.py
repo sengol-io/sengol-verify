@@ -13,12 +13,15 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Literal
 
+import rfc8785
+
 from sengol_verify.bundle import (
     load_bundle,
     reconstruct_anchors,
     reconstruct_countersigs,
     reconstruct_records,
 )
+from sengol_verify.canonical import UnknownPayloadVersion
 from sengol_verify.merkle import merkle_root
 
 ResultStatus = Literal["PASS", "FAIL", "UNVERIFIABLE"]
@@ -103,6 +106,24 @@ def _check_field_coverage(records: list) -> StepResult:
     )
 
 
+def _payload(record) -> str | None:
+    """The record's canonical payload, or ``None`` when it has none.
+
+    A record with a value RFC 8785 cannot encode, or a payload version this
+    verifier does not know, cannot have been signed as it stands; each step
+    counts it as a failure rather than letting the exception end the run.
+    """
+    try:
+        return record.canonical_payload()
+    except (rfc8785.CanonicalizationError, UnknownPayloadVersion):
+        return None
+
+
+def _payload_hash(record) -> str | None:
+    payload = _payload(record)
+    return None if payload is None else hashlib.sha256(payload.encode()).hexdigest()
+
+
 def _check_payload_hashes(records: list, countersigs: list) -> StepResult:
     """Step 1: each record's live payload hash matches a stored countersig."""
     committed: dict = {}
@@ -113,7 +134,10 @@ def _check_payload_hashes(records: list, countersigs: list) -> StepResult:
     uncovered = []
 
     for record in records:
-        live_hash = hashlib.sha256(record.canonical_payload().encode()).hexdigest()
+        live_hash = _payload_hash(record)
+        if live_hash is None:
+            failures.append(record.record_id)
+            continue
         stored = committed.get(record.record_id)
         if stored is None:
             uncovered.append(record.record_id)
@@ -161,15 +185,17 @@ def _check_hmac(records: list, public_keys: dict) -> StepResult:
     hmac_material: dict = public_keys.get("hmac_material", {})
 
     for record in records:
-        if record.payload_version < 2:
-            continue
         key_material = hmac_material.get(record.key_id)
         if key_material is None:
             unverifiable.append(record.record_id)
             continue
+        payload = _payload(record)
+        if payload is None:
+            failures.append(record.record_id)
+            continue
         expected = _hmac.new(
             key_material.encode(),
-            record.canonical_payload().encode(),
+            payload.encode(),
             hashlib.sha256,
         ).hexdigest()
         if not _hmac.compare_digest(expected, record.hmac_signature):
@@ -233,7 +259,7 @@ def _check_chain_continuity(records: list, *, portable: bool = False) -> StepRes
                         )
                     if not adjacent:
                         gaps.append(f"{tenant_id}/{agent_id}: gap at seq {record.sequence_number}")
-            prev_hash = hashlib.sha256(record.canonical_payload().encode()).hexdigest()
+            prev_hash = _payload_hash(record)
 
     issues = []
     if gaps:
@@ -306,7 +332,7 @@ def _check_countersigs(records: list, countersigs: list, public_keys: dict) -> S
 
             record = record_map.get(cs.record_id)
             if record is not None:
-                expected_hash = hashlib.sha256(record.canonical_payload().encode()).hexdigest()
+                expected_hash = _payload_hash(record)
                 if cs.payload_hash != expected_hash:
                     failures.append(cs.countersig_id)
         except InvalidSignature:

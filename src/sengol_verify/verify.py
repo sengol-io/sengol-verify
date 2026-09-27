@@ -161,8 +161,6 @@ def _check_hmac(records: list, public_keys: dict) -> StepResult:
     hmac_material: dict = public_keys.get("hmac_material", {})
 
     for record in records:
-        if record.payload_version < 2:
-            continue
         key_material = hmac_material.get(record.key_id)
         if key_material is None:
             unverifiable.append(record.record_id)

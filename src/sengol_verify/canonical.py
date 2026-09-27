@@ -303,5 +303,3 @@ def canonical_payload(family: str, version: int, record: Any) -> str:
 def unsigned_fields_below_floor(record: Any) -> dict:
     """No-op under ADR-0019 — kept for API stability. Always ``{}``."""
     return {}
-
-

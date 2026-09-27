@@ -15,10 +15,18 @@ from datetime import UTC, datetime
 
 from sengol.core.types import (
     AgentCallRecord,
+    AuditRecord,
     AuthorityModelRecord,
+    AuthorizationDecisionRecord,
+    CaseResult,
+    CertificationRecord,
+    EvalManifestEntry,
     EvalResult,
     EvalScore,
+    EvaluationRunRecord,
+    GoldScoreRecord,
     JudgeModelCard,
+    SaturationEvent,
     TenantStatusChangeRecord,
     TombstoneRecord,
 )
@@ -39,9 +47,12 @@ def _eval_result() -> EvalResult:
     )
 
 
-def _check(real) -> None:
+def _check(real, family: str | None = None) -> None:
+    """*family* is required for a record with no ``record_type`` field
+    (EvaluationRunRecord, CertificationRecord, GoldScoreRecord,
+    SaturationEvent) — ``family_for`` only resolves that field."""
     raw = real.model_dump(mode="json")
-    mine = Record(raw, family_for(raw))
+    mine = Record(raw, family or family_for(raw))
     real_bytes = real._canonical_payload()
     mine_bytes = mine.canonical_payload()
     status = "OK" if real_bytes == mine_bytes else "MISMATCH"
@@ -162,6 +173,141 @@ def main() -> None:
         key_id="k1",
     ).sign("hmac-key")
     _check(card)
+
+    _check(
+        AuditRecord(
+            agent_id=AGENT,
+            agent_version="1.0.0",
+            tenant_id=TENANT,
+            eval_result=_eval_result(),
+            policies=["OSFI_E23"],
+            controlbook_id="cb-1",
+            controlbook_version="v1",
+            sequence_number=1,
+            prev_hash="",
+            key_id="k1",
+            payload_version=3,
+        ).sign("hmac-key")
+    )
+
+    _check(
+        GoldScoreRecord(
+            agent_id=AGENT,
+            agent_version="1.0.0",
+            tenant_id=TENANT,
+            controlbook_id="cb-1",
+            controlbook_version="v1",
+            period_from=datetime.now(UTC),
+            period_to=datetime.now(UTC),
+            score=0.9,
+            breakdown={"OSFI_E23": 0.9},
+            formula_type="weighted",
+            compliant=True,
+            key_id="k1",
+            payload_version=2,
+        ).sign("hmac-key"),
+        family="GoldScoreRecord",
+    )
+
+    # SaturationEvent — UNSIGNED_FIELDS (remediated_at), populated so its
+    # exclusion is actually exercised, not just an absent-field no-op.
+    _check(
+        SaturationEvent(
+            suite_name="s",
+            agent_id=AGENT,
+            tenant_id=TENANT,
+            pass_rate=1.0,
+            consecutive_runs=3,
+            threshold=0.95,
+            remediated_at=datetime.now(UTC),
+            key_id="k1",
+            payload_version=2,
+        ).sign("hmac-key"),
+        family="SaturationEvent",
+    )
+
+    # AuthorizationDecisionRecord — UNSIGNED_FIELDS (eval_result, model,
+    # token/cost telemetry), populated so the exclusion is exercised.
+    _check(
+        AuthorizationDecisionRecord(
+            agent_id=AGENT,
+            agent_version="1.0.0",
+            tenant_id=TENANT,
+            caller_agent_id="orchestrator",
+            callee_agent_id=AGENT,
+            tool_id="tool-1",
+            decision="allow",
+            enforcement_mode="enforce",
+            policy_matched=True,
+            matched_rule="rule-1",
+            reason="ok",
+            policies=["OSFI_E23"],
+            eval_result=_eval_result(),
+            model="gpt-x",
+            input_tokens=10,
+            output_tokens=5,
+            cost_usd=0.01,
+            delegation_depth=1,
+            risk_tier_escalation=False,
+            sequence_number=1,
+            prev_hash="",
+            key_id="k1",
+            payload_version=2,
+        ).sign("hmac-key")
+    )
+
+    # EvaluationRunRecord v6 — UNORDERED_FIELDS (evaluator_manifest) plus the
+    # case-set/regression fields.
+    run = EvaluationRunRecord(
+        agent_id=AGENT,
+        agent_version="1.0.0",
+        tenant_id=TENANT,
+        suite_name="regression",
+        total=2,
+        passed=2,
+        pass_rate=1.0,
+        gate_passed=True,
+        required_pass_rate=1.0,
+        regression_suite_digest="sha256:" + "d" * 64,
+        case_results=[
+            CaseResult(case_id="c-1", passed=True, evaluator_versions=["Faithfulness@1"]),
+            CaseResult(case_id="c-2", passed=True, evaluator_versions=["Faithfulness@1"]),
+        ],
+        case_count=2,
+        dataset_sha256="e" * 64,
+        dataset_row_count=2,
+        evaluator_manifest=[
+            EvalManifestEntry(evaluator="Z", evaluator_version="1"),
+            EvalManifestEntry(evaluator="A", evaluator_version="1"),
+        ],
+        cases_digest="f" * 64,
+        digest_algorithm="sha256-index-lines-v1",
+        key_id="k1",
+        payload_version=6,
+    ).sign("hmac-key")
+    _check(run, family="EvaluationRunRecord")
+
+    # CertificationRecord v4 — UNSIGNED_FIELDS (evidence_pack_id) and
+    # UNORDERED_FIELDS (supersedes), plus run_payload_sha256 (ADR-0020).
+    cert = CertificationRecord(
+        agent_id=AGENT,
+        agent_version="1.0.0",
+        tenant_id=TENANT,
+        run_id=run.run_id,
+        certified_risk_tier="TIER_2",
+        policies=["OSFI_E23"],
+        gate_passed=True,
+        certified_by="reviewer-1",
+        run_payload_sha256=run.payload_sha256(),
+        supersedes=[
+            "01a0e0ae-9261-7e42-8555-802b216f7a26",
+            "01a0e0ae-9261-7e42-8555-802b216f7a25",
+        ],
+        key_id="k1",
+        payload_version=4,
+    ).sign("hmac-key")
+    cert = cert.model_copy(update={"evidence_pack_id": "pack-1"})
+    _check(cert, family="CertificationRecord")
 
 
 if __name__ == "__main__":

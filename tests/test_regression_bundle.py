@@ -180,3 +180,51 @@ def test_duplicate_case_id_fails():
     step = _step(bundle)
     assert step.result == "FAIL"
     assert "duplicate id" in step.detail
+
+
+def test_legacy_certification_without_run_hash_needs_its_run():
+    """A certification that predates run_payload_sha256 is still resolved
+    by run_id, so it cannot point at a run absent from the section."""
+
+    def m(e):
+        e["certification"]["raw"].pop("run_payload_sha256")
+
+    bundle = _bundle(mutate=m)
+    bundle["regression_evidence"]["records"] = [
+        r for r in bundle["regression_evidence"]["records"] if r["family"] != "EvaluationRunRecord"
+    ]
+    step = _step(bundle)
+    assert step.result == "FAIL"
+    assert "references missing EvaluationRunRecord" in step.detail
+
+
+def test_unsupported_format_fails():
+    bundle = _bundle(hmac=True)
+    bundle["regression_evidence"]["format"] = "sengol-regression-evidence/v2"
+    step = _step(bundle)
+    assert step.result == "FAIL"
+    assert "unsupported format" in step.detail
+
+
+def test_section_agent_must_match_signed_records():
+    bundle = _bundle(hmac=True)
+    bundle["regression_evidence"]["agent_id"] = "some-other-agent"
+    step = _step(bundle)
+    assert step.result == "FAIL"
+    assert "is not the section's" in step.detail
+
+
+def test_null_section_is_treated_as_absent():
+    bundle = _bundle(hmac=True)
+    bundle["regression_evidence"] = None
+    checks = [s.check for s in verify_bundle(bundle).step_results]
+    assert "regression_lineage" not in checks
+
+
+def test_malformed_case_result_entry_fails_without_crashing():
+    def m(e):
+        e["run"]["raw"]["case_results"] = [None]
+
+    step = _step(_bundle(hmac=True, mutate=m))
+    assert step.result == "FAIL"
+    assert "malformed case_results entry" in step.detail

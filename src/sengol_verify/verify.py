@@ -21,7 +21,7 @@ from sengol_verify.bundle import (
     reconstruct_countersigs,
     reconstruct_records,
 )
-from sengol_verify.canonical import UnknownPayloadVersion
+from sengol_verify.canonical import Record, UnknownPayloadVersion
 from sengol_verify.merkle import merkle_root
 
 ResultStatus = Literal["PASS", "FAIL", "UNVERIFIABLE"]
@@ -76,6 +76,8 @@ def verify_bundle(bundle: dict, *, portable: bool = False) -> BundleResult:
         _check_anchors(records, anchors),
         _check_field_coverage(records),
     ]
+    if bundle.get("regression_evidence") is not None:
+        results.append(_check_regression_lineage(bundle["regression_evidence"], public_keys))
     return BundleResult(step_results=results)
 
 
@@ -406,4 +408,142 @@ def _check_anchors(records: list, anchors: list) -> StepResult:
         scope="all_anchors",
         result="PASS",
         detail=f"{len(anchors)} anchor receipt(s) verified",
+    )
+
+
+#: Each regression family's own id field (its records carry no ``record_id``).
+# Field each family is labelled by in messages. Retirements and waivers
+# carry no id of their own, so they are labelled by what they reference;
+# only failures, cases and runs are link targets and must be unique.
+_REGRESSION_ID_FIELD = {
+    "ProductionFailureRecord": "failure_id",
+    "RegressionCaseRecord": "case_id",
+    "RegressionCaseRetirementRecord": "case_id",
+    "ProductionFailureWaiverRecord": "failure_id",
+    "EvaluationRunRecord": "run_id",
+    "CertificationRecord": "cert_id",
+}
+_REGRESSION_LINK_TARGETS = frozenset(
+    {"ProductionFailureRecord", "RegressionCaseRecord", "EvaluationRunRecord"}
+)
+_REGRESSION_FORMAT = "sengol-regression-evidence/v1"
+_REGRESSION_SCOPE = (
+    "regression_evidence section; records are signed but not chained "
+    "(ADR-0019), so deletion of a record is not detectable"
+)
+
+
+def _check_regression_lineage(section: dict, public_keys: dict) -> StepResult:
+    """Regression evidence: format, agent, family, signature, field coverage
+    and id links."""
+    if not isinstance(section, dict):
+        return StepResult(
+            "regression_lineage", _REGRESSION_SCOPE, "FAIL", "section is not an object"
+        )
+    if section.get("format") != _REGRESSION_FORMAT:
+        return StepResult(
+            "regression_lineage",
+            _REGRESSION_SCOPE,
+            "FAIL",
+            f"unsupported format {section.get('format')!r}; expected {_REGRESSION_FORMAT!r}",
+        )
+    entries = section.get("records", [])
+    if not isinstance(entries, list):
+        return StepResult("regression_lineage", _REGRESSION_SCOPE, "FAIL", "records is not a list")
+    agent_id = section.get("agent_id")
+    problems: list = []
+    allrecs: list = []
+    by_family: dict = defaultdict(list)
+    recs: dict = defaultdict(dict)  # link-target family -> id -> Record
+    for entry in entries:
+        if not isinstance(entry, dict) or not isinstance(entry.get("record"), dict):
+            problems.append("malformed entry (not a {family, record} object)")
+            continue
+        family = entry.get("family")
+        if not isinstance(family, str) or family not in _REGRESSION_ID_FIELD:
+            problems.append(f"unknown family {family!r}")
+            continue
+        rec = Record(entry["record"], family)
+        if rec._raw.get("agent_id") != agent_id:
+            problems.append(
+                f"{family} {rec._raw.get(_REGRESSION_ID_FIELD[family], '')}: agent_id "
+                f"{rec._raw.get('agent_id')!r} is not the section's {agent_id!r}"
+            )
+        allrecs.append(rec)
+        by_family[family].append(rec)
+        if family in _REGRESSION_LINK_TARGETS:
+            rid = str(rec._raw.get(_REGRESSION_ID_FIELD[family], ""))
+            if not rid or rid in recs[family]:
+                problems.append(f"{family}: missing or duplicate id {rid!r}")
+            recs[family][rid] = rec
+
+    material = public_keys.get("hmac_material", {})
+    unverifiable = 0
+    for r in allrecs:
+        rid = f"{r.family} {r._raw.get(_REGRESSION_ID_FIELD[r.family], '')}"
+        payload = _payload(r)
+        if payload is None:
+            problems.append(f"{rid}: no canonical payload")
+        elif (key := material.get(r.key_id)) is None:
+            unverifiable += 1
+        elif not isinstance(r.hmac_signature, str) or not _hmac.compare_digest(
+            _hmac.new(key.encode(), payload.encode(), hashlib.sha256).hexdigest(),
+            r.hmac_signature,
+        ):
+            problems.append(f"{rid}: HMAC mismatch")
+        if r.unsigned_fields():
+            problems.append(f"{rid}: unsigned fields {sorted(r.unsigned_fields())}")
+
+    def dangling(kind, ref_id, owner, target_family):
+        if str(ref_id) not in recs[target_family]:
+            problems.append(f"{kind} {owner} references missing {target_family} {ref_id}")
+
+    for c in recs["RegressionCaseRecord"].values():
+        dangling("case", c.failure_id, c.case_id, "ProductionFailureRecord")
+    for x in by_family["RegressionCaseRetirementRecord"]:
+        dangling("retirement", x.case_id, "", "RegressionCaseRecord")
+    for w in by_family["ProductionFailureWaiverRecord"]:
+        dangling("waiver", w.failure_id, "", "ProductionFailureRecord")
+    for run in recs["EvaluationRunRecord"].values():
+        results = run.case_results or []
+        if not isinstance(results, list):
+            problems.append(f"run {run.run_id}: case_results is not a list")
+            continue
+        for cr in results:
+            if not isinstance(cr, dict):
+                problems.append(f"run {run.run_id}: malformed case_results entry {cr!r}")
+                continue
+            dangling("run", cr.get("case_id"), run.run_id, "RegressionCaseRecord")
+    for cert in by_family["CertificationRecord"]:
+        run = recs["EvaluationRunRecord"].get(str(cert.run_id))
+        if run is None:
+            problems.append(
+                f"certification {cert.cert_id} references missing EvaluationRunRecord {cert.run_id}"
+            )
+        else:
+            if cert.run_payload_sha256 and _payload_hash(run) != cert.run_payload_sha256:
+                problems.append(
+                    f"certification {cert.cert_id}: run_payload_sha256 does not match "
+                    f"EvaluationRunRecord {cert.run_id}"
+                )
+            if cert._raw.get("agent_version") != run._raw.get("agent_version"):
+                problems.append(
+                    f"certification {cert.cert_id}: agent_version "
+                    f"{cert._raw.get('agent_version')!r} is not the run's "
+                    f"{run._raw.get('agent_version')!r}"
+                )
+
+    scope = f"{len(entries)} records; {_REGRESSION_SCOPE}"
+    if problems:
+        return StepResult("regression_lineage", scope, "FAIL", "; ".join(problems))
+    if unverifiable:
+        return StepResult(
+            "regression_lineage",
+            scope,
+            "UNVERIFIABLE",
+            f"Links and field coverage verified; HMAC key material absent "
+            f"for {unverifiable} records",
+        )
+    return StepResult(
+        "regression_lineage", scope, "PASS", f"{len(entries)} records verified, all links resolve"
     )

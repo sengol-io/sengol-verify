@@ -23,6 +23,21 @@ in the file:
 6. **Field coverage** — no record carries a field outside what its
    `payload_version` actually signs (a version-skew forgery surface).
 
+If the bundle has an optional top-level `regression_evidence` section
+(`{"format": "sengol-regression-evidence/v1", "agent_id": ..., "records":
+[{"family": ..., "record": {...}}]}`), a seventh step, **`regression_lineage`**,
+is added. Any other `format` FAILs, and every record's signed `agent_id` must
+equal the section's `agent_id`. Every family is one of the six regression
+families (unknown = FAIL), each record's canonical payload / HMAC (UNVERIFIABLE without
+`public_keys["hmac_material"]`) and field coverage check out, and every link
+resolves (case -> failure, retirement -> case, waiver -> failure, run
+`case_results` -> case, certification `run_id` -> a run in the section, and
+its `run_payload_sha256`, when present, -> that run's canonical-payload hash,
+with the same `agent_version` as the run). Dangling ids and hash mismatches
+FAIL and are named. These records are signed but not chained, so a deleted
+record is not detectable. Bundles without the section, or with it set to `null`, verify exactly as
+before.
+
 The verdict is **PASS**, **FAIL** (tampering or a broken chain), or
 **UNVERIFIABLE** (the bundle honestly doesn't carry enough — e.g. no
 countersignatures yet, or no anchor receipts).

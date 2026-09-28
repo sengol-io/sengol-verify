@@ -460,7 +460,7 @@ def _check_regression_lineage(section: dict, public_keys: dict) -> StepResult:
             problems.append("malformed entry (not a {family, record} object)")
             continue
         family = entry.get("family")
-        if family not in _REGRESSION_ID_FIELD:
+        if not isinstance(family, str) or family not in _REGRESSION_ID_FIELD:
             problems.append(f"unknown family {family!r}")
             continue
         rec = Record(entry["record"], family)
@@ -486,7 +486,7 @@ def _check_regression_lineage(section: dict, public_keys: dict) -> StepResult:
             problems.append(f"{rid}: no canonical payload")
         elif (key := material.get(r.key_id)) is None:
             unverifiable += 1
-        elif not _hmac.compare_digest(
+        elif not isinstance(r.hmac_signature, str) or not _hmac.compare_digest(
             _hmac.new(key.encode(), payload.encode(), hashlib.sha256).hexdigest(),
             r.hmac_signature,
         ):
@@ -505,7 +505,11 @@ def _check_regression_lineage(section: dict, public_keys: dict) -> StepResult:
     for w in by_family["ProductionFailureWaiverRecord"]:
         dangling("waiver", w.failure_id, "", "ProductionFailureRecord")
     for run in recs["EvaluationRunRecord"].values():
-        for cr in run.case_results or []:
+        results = run.case_results or []
+        if not isinstance(results, list):
+            problems.append(f"run {run.run_id}: case_results is not a list")
+            continue
+        for cr in results:
             if not isinstance(cr, dict):
                 problems.append(f"run {run.run_id}: malformed case_results entry {cr!r}")
                 continue
@@ -516,11 +520,18 @@ def _check_regression_lineage(section: dict, public_keys: dict) -> StepResult:
             problems.append(
                 f"certification {cert.cert_id} references missing EvaluationRunRecord {cert.run_id}"
             )
-        elif cert.run_payload_sha256 and _payload_hash(run) != cert.run_payload_sha256:
-            problems.append(
-                f"certification {cert.cert_id}: run_payload_sha256 does not match "
-                f"EvaluationRunRecord {cert.run_id}"
-            )
+        else:
+            if cert.run_payload_sha256 and _payload_hash(run) != cert.run_payload_sha256:
+                problems.append(
+                    f"certification {cert.cert_id}: run_payload_sha256 does not match "
+                    f"EvaluationRunRecord {cert.run_id}"
+                )
+            if cert._raw.get("agent_version") != run._raw.get("agent_version"):
+                problems.append(
+                    f"certification {cert.cert_id}: agent_version "
+                    f"{cert._raw.get('agent_version')!r} is not the run's "
+                    f"{run._raw.get('agent_version')!r}"
+                )
 
     scope = f"{len(entries)} records; {_REGRESSION_SCOPE}"
     if problems:

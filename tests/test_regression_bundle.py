@@ -228,3 +228,38 @@ def test_malformed_case_result_entry_fails_without_crashing():
     step = _step(_bundle(hmac=True, mutate=m))
     assert step.result == "FAIL"
     assert "malformed case_results entry" in step.detail
+
+
+def test_scalar_case_results_fails_without_crashing():
+    def m(e):
+        e["run"]["raw"]["case_results"] = 1
+
+    step = _step(_bundle(hmac=True, mutate=m))
+    assert step.result == "FAIL"
+    assert "case_results is not a list" in step.detail
+
+
+def test_unhashable_family_fails_without_crashing():
+    bundle = _bundle()
+    bundle["regression_evidence"]["records"][0]["family"] = []
+    step = _step(bundle)
+    assert step.result == "FAIL"
+    assert "unknown family" in step.detail
+
+
+def test_non_string_hmac_signature_fails_without_crashing():
+    def m(e):
+        e["case"]["raw"]["hmac_signature"] = None
+
+    step = _step(_bundle(hmac=True, mutate=m))
+    assert step.result == "FAIL"
+    assert "HMAC mismatch" in step.detail
+
+
+def test_certification_agent_version_must_match_its_run():
+    def m(e):
+        e["certification"]["raw"]["agent_version"] = "not-the-evaluated-version"
+
+    step = _step(_bundle(mutate=m))
+    assert step.result == "FAIL"
+    assert "agent_version" in step.detail

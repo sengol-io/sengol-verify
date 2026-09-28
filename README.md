@@ -32,7 +32,8 @@ families (unknown = FAIL), each record's canonical payload / HMAC (UNVERIFIABLE 
 `public_keys["hmac_material"]`) and field coverage check out, and every link
 resolves (case -> failure, retirement -> case, waiver -> failure, run
 `case_results` -> case, certification `run_id` -> a run in the section, and
-its `run_payload_sha256`, when present, -> that run's canonical-payload hash). Dangling ids and hash mismatches
+its `run_payload_sha256`, when present, -> that run's canonical-payload hash,
+with the same `agent_version` as the run). Dangling ids and hash mismatches
 FAIL and are named. These records are signed but not chained, so a deleted
 record is not detectable. Bundles without the section, or with it set to `null`, verify exactly as
 before.

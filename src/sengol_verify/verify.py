@@ -412,14 +412,20 @@ def _check_anchors(records: list, anchors: list) -> StepResult:
 
 
 #: Each regression family's own id field (its records carry no ``record_id``).
+# Field each family is labelled by in messages. Retirements and waivers
+# carry no id of their own, so they are labelled by what they reference;
+# only failures, cases and runs are link targets and must be unique.
 _REGRESSION_ID_FIELD = {
     "ProductionFailureRecord": "failure_id",
     "RegressionCaseRecord": "case_id",
-    "RegressionCaseRetirementRecord": "retirement_id",
-    "ProductionFailureWaiverRecord": "waiver_id",
+    "RegressionCaseRetirementRecord": "case_id",
+    "ProductionFailureWaiverRecord": "failure_id",
     "EvaluationRunRecord": "run_id",
     "CertificationRecord": "cert_id",
 }
+_REGRESSION_LINK_TARGETS = frozenset(
+    {"ProductionFailureRecord", "RegressionCaseRecord", "EvaluationRunRecord"}
+)
 _REGRESSION_SCOPE = (
     "regression_evidence section; records are signed but not chained "
     "(ADR-0019), so deletion of a record is not detectable"
@@ -430,16 +436,23 @@ def _check_regression_lineage(section: dict, public_keys: dict) -> StepResult:
     """Regression evidence: family, signature, field coverage and id links."""
     entries = section.get("records", [])
     problems: list = []
-    recs: dict = defaultdict(dict)  # family -> id -> Record
+    allrecs: list = []
+    by_family: dict = defaultdict(list)
+    recs: dict = defaultdict(dict)  # link-target family -> id -> Record
     for entry in entries:
         family = entry.get("family")
         if family not in _REGRESSION_ID_FIELD:
             problems.append(f"unknown family {family!r}")
             continue
         rec = Record(entry.get("record", {}), family)
-        recs[family][str(rec._raw.get(_REGRESSION_ID_FIELD[family], ""))] = rec
+        allrecs.append(rec)
+        by_family[family].append(rec)
+        if family in _REGRESSION_LINK_TARGETS:
+            rid = str(rec._raw.get(_REGRESSION_ID_FIELD[family], ""))
+            if not rid or rid in recs[family]:
+                problems.append(f"{family}: missing or duplicate id {rid!r}")
+            recs[family][rid] = rec
 
-    allrecs = [r for fam in recs.values() for r in fam.values()]
     material = public_keys.get("hmac_material", {})
     unverifiable = 0
     for r in allrecs:
@@ -463,14 +476,14 @@ def _check_regression_lineage(section: dict, public_keys: dict) -> StepResult:
 
     for c in recs["RegressionCaseRecord"].values():
         dangling("case", c.failure_id, c.case_id, "ProductionFailureRecord")
-    for x in recs["RegressionCaseRetirementRecord"].values():
-        dangling("retirement", x.case_id, x._raw.get("retirement_id"), "RegressionCaseRecord")
-    for w in recs["ProductionFailureWaiverRecord"].values():
-        dangling("waiver", w.failure_id, w._raw.get("waiver_id"), "ProductionFailureRecord")
+    for x in by_family["RegressionCaseRetirementRecord"]:
+        dangling("retirement", x.case_id, "", "RegressionCaseRecord")
+    for w in by_family["ProductionFailureWaiverRecord"]:
+        dangling("waiver", w.failure_id, "", "ProductionFailureRecord")
     for run in recs["EvaluationRunRecord"].values():
         for cr in run.case_results or []:
             dangling("run", cr.get("case_id"), run.run_id, "RegressionCaseRecord")
-    for cert in recs["CertificationRecord"].values():
+    for cert in by_family["CertificationRecord"]:
         want = cert.run_payload_sha256
         if not want:
             continue

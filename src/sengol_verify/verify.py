@@ -21,7 +21,7 @@ from sengol_verify.bundle import (
     reconstruct_countersigs,
     reconstruct_records,
 )
-from sengol_verify.canonical import UnknownPayloadVersion
+from sengol_verify.canonical import Record, UnknownPayloadVersion
 from sengol_verify.merkle import merkle_root
 
 ResultStatus = Literal["PASS", "FAIL", "UNVERIFIABLE"]
@@ -76,6 +76,8 @@ def verify_bundle(bundle: dict, *, portable: bool = False) -> BundleResult:
         _check_anchors(records, anchors),
         _check_field_coverage(records),
     ]
+    if "regression_evidence" in bundle:
+        results.append(_check_regression_lineage(bundle["regression_evidence"], public_keys))
     return BundleResult(step_results=results)
 
 
@@ -406,4 +408,93 @@ def _check_anchors(records: list, anchors: list) -> StepResult:
         scope="all_anchors",
         result="PASS",
         detail=f"{len(anchors)} anchor receipt(s) verified",
+    )
+
+
+#: Each regression family's own id field (its records carry no ``record_id``).
+_REGRESSION_ID_FIELD = {
+    "ProductionFailureRecord": "failure_id",
+    "RegressionCaseRecord": "case_id",
+    "RegressionCaseRetirementRecord": "retirement_id",
+    "ProductionFailureWaiverRecord": "waiver_id",
+    "EvaluationRunRecord": "run_id",
+    "CertificationRecord": "cert_id",
+}
+_REGRESSION_SCOPE = (
+    "regression_evidence section; records are signed but not chained "
+    "(ADR-0019), so deletion of a record is not detectable"
+)
+
+
+def _check_regression_lineage(section: dict, public_keys: dict) -> StepResult:
+    """Regression evidence: family, signature, field coverage and id links."""
+    entries = section.get("records", [])
+    problems: list = []
+    recs: dict = defaultdict(dict)  # family -> id -> Record
+    for entry in entries:
+        family = entry.get("family")
+        if family not in _REGRESSION_ID_FIELD:
+            problems.append(f"unknown family {family!r}")
+            continue
+        rec = Record(entry.get("record", {}), family)
+        recs[family][str(rec._raw.get(_REGRESSION_ID_FIELD[family], ""))] = rec
+
+    allrecs = [r for fam in recs.values() for r in fam.values()]
+    material = public_keys.get("hmac_material", {})
+    unverifiable = 0
+    for r in allrecs:
+        rid = f"{r.family} {r._raw.get(_REGRESSION_ID_FIELD[r.family], '')}"
+        payload = _payload(r)
+        if payload is None:
+            problems.append(f"{rid}: no canonical payload")
+        elif (key := material.get(r.key_id)) is None:
+            unverifiable += 1
+        elif not _hmac.compare_digest(
+            _hmac.new(key.encode(), payload.encode(), hashlib.sha256).hexdigest(),
+            r.hmac_signature,
+        ):
+            problems.append(f"{rid}: HMAC mismatch")
+        if r.unsigned_fields():
+            problems.append(f"{rid}: unsigned fields {sorted(r.unsigned_fields())}")
+
+    def dangling(kind, ref_id, owner, target_family):
+        if str(ref_id) not in recs[target_family]:
+            problems.append(f"{kind} {owner} references missing {target_family} {ref_id}")
+
+    for c in recs["RegressionCaseRecord"].values():
+        dangling("case", c.failure_id, c.case_id, "ProductionFailureRecord")
+    for x in recs["RegressionCaseRetirementRecord"].values():
+        dangling("retirement", x.case_id, x._raw.get("retirement_id"), "RegressionCaseRecord")
+    for w in recs["ProductionFailureWaiverRecord"].values():
+        dangling("waiver", w.failure_id, w._raw.get("waiver_id"), "ProductionFailureRecord")
+    for run in recs["EvaluationRunRecord"].values():
+        for cr in run.case_results or []:
+            dangling("run", cr.get("case_id"), run.run_id, "RegressionCaseRecord")
+    for cert in recs["CertificationRecord"].values():
+        want = cert.run_payload_sha256
+        if not want:
+            continue
+        ok = any(
+            _payload_hash(run) == want and run.run_id == cert.run_id
+            for run in recs["EvaluationRunRecord"].values()
+        )
+        if not ok:
+            problems.append(
+                f"certification {cert.cert_id}: run_payload_sha256 matches no "
+                f"EvaluationRunRecord with run_id {cert.run_id}"
+            )
+
+    scope = f"{len(entries)} records; {_REGRESSION_SCOPE}"
+    if problems:
+        return StepResult("regression_lineage", scope, "FAIL", "; ".join(problems))
+    if unverifiable:
+        return StepResult(
+            "regression_lineage",
+            scope,
+            "UNVERIFIABLE",
+            f"Links and field coverage verified; HMAC key material absent "
+            f"for {unverifiable} records",
+        )
+    return StepResult(
+        "regression_lineage", scope, "PASS", f"{len(entries)} records verified, all links resolve"
     )

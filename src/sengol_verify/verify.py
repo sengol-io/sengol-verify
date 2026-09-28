@@ -423,13 +423,21 @@ _REGRESSION_ID_FIELD = {
     "EvaluationRunRecord": "run_id",
     "CertificationRecord": "cert_id",
 }
+# Retirements and waivers are unsigned operator judgements (sengol
+# ADR-0024): they carry no HMAC, so only their agent and links are checked.
+# The signed *Record names above remain for bundles from older servers.
+_UNSIGNED_REGRESSION_FAMILIES = {
+    "RegressionCaseRetirement": "case_id",
+    "ProductionFailureWaiver": "failure_id",
+}
 _REGRESSION_LINK_TARGETS = frozenset(
     {"ProductionFailureRecord", "RegressionCaseRecord", "EvaluationRunRecord"}
 )
 _REGRESSION_FORMAT = "sengol-regression-evidence/v1"
 _REGRESSION_SCOPE = (
     "regression_evidence section; records are signed but not chained "
-    "(ADR-0019), so deletion of a record is not detectable"
+    "(ADR-0019), so deletion of a record is not detectable; unsigned "
+    "retirements and waivers are link-checked only"
 )
 
 
@@ -460,6 +468,15 @@ def _check_regression_lineage(section: dict, public_keys: dict) -> StepResult:
             problems.append("malformed entry (not a {family, record} object)")
             continue
         family = entry.get("family")
+        if isinstance(family, str) and family in _UNSIGNED_REGRESSION_FAMILIES:
+            raw = entry["record"]
+            if raw.get("agent_id") != agent_id:
+                problems.append(
+                    f"{family} {raw.get(_UNSIGNED_REGRESSION_FAMILIES[family], '')}: "
+                    f"agent_id {raw.get('agent_id')!r} is not the section's {agent_id!r}"
+                )
+            by_family[family].append(raw)
+            continue
         if not isinstance(family, str) or family not in _REGRESSION_ID_FIELD:
             problems.append(f"unknown family {family!r}")
             continue
@@ -504,6 +521,10 @@ def _check_regression_lineage(section: dict, public_keys: dict) -> StepResult:
         dangling("retirement", x.case_id, "", "RegressionCaseRecord")
     for w in by_family["ProductionFailureWaiverRecord"]:
         dangling("waiver", w.failure_id, "", "ProductionFailureRecord")
+    for x in by_family["RegressionCaseRetirement"]:
+        dangling("retirement", x.get("case_id"), "", "RegressionCaseRecord")
+    for w in by_family["ProductionFailureWaiver"]:
+        dangling("waiver", w.get("failure_id"), "", "ProductionFailureRecord")
     for run in recs["EvaluationRunRecord"].values():
         results = run.case_results or []
         if not isinstance(results, list):

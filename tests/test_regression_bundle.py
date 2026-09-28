@@ -263,3 +263,55 @@ def test_certification_agent_version_must_match_its_run():
     step = _step(_bundle(mutate=m))
     assert step.result == "FAIL"
     assert "agent_version" in step.detail
+
+
+def _unsigned(family: str, **fields) -> dict:
+    case = _CHAIN["case"]["raw"]
+    return {
+        "family": family,
+        "record": {"tenant_id": case["tenant_id"], "agent_id": case["agent_id"], **fields},
+    }
+
+
+def test_unsigned_retirement_and_waiver_are_link_checked_and_pass():
+    """sengol ADR-0024 exports retirements and waivers unsigned, under the
+    names RegressionCaseRetirement / ProductionFailureWaiver."""
+    bundle = _bundle(hmac=True)
+    bundle["regression_evidence"]["records"] += [
+        _unsigned(
+            "RegressionCaseRetirement",
+            case_id=_CHAIN["case"]["raw"]["case_id"],
+            reason="obsolete",
+            retired_by="reviewer-2",
+            retired_at="2026-09-28T00:00:00Z",
+        ),
+        _unsigned(
+            "ProductionFailureWaiver",
+            failure_id=_CHAIN["failure"]["raw"]["failure_id"],
+            reason="untestable",
+            waived_by="reviewer-2",
+            waived_at="2026-09-28T00:00:00Z",
+        ),
+    ]
+    step = _step(bundle)
+    assert step.result == "PASS", step.detail
+
+
+def test_unsigned_retirement_with_dangling_case_fails():
+    bundle = _bundle(hmac=True)
+    bundle["regression_evidence"]["records"].append(
+        _unsigned("RegressionCaseRetirement", case_id="no-such-case", reason="x")
+    )
+    step = _step(bundle)
+    assert step.result == "FAIL"
+    assert "no-such-case" in step.detail
+
+
+def test_unsigned_waiver_for_another_agent_fails():
+    bundle = _bundle(hmac=True)
+    w = _unsigned("ProductionFailureWaiver", failure_id=_CHAIN["failure"]["raw"]["failure_id"])
+    w["record"]["agent_id"] = "someone-else"
+    bundle["regression_evidence"]["records"].append(w)
+    step = _step(bundle)
+    assert step.result == "FAIL"
+    assert "is not the section's" in step.detail

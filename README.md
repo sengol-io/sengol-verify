@@ -35,7 +35,9 @@ resolves (case -> failure, retirement -> case, waiver -> failure, run
 its `run_payload_sha256`, when present, -> that run's canonical-payload hash,
 with the same `agent_version` as the run). Dangling ids and hash mismatches
 FAIL and are named. These records are signed but not chained, so a deleted
-record is not detectable. Bundles without the section, or with it set to `null`, verify exactly as
+record is not detectable. Retirements and waivers exported unsigned (sengol
+ADR-0024, families `RegressionCaseRetirement` and `ProductionFailureWaiver`)
+have no HMAC to check; only their `agent_id` and links are verified. Bundles without the section, or with it set to `null`, verify exactly as
 before.
 
 The verdict is **PASS**, **FAIL** (tampering or a broken chain), or

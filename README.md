@@ -52,6 +52,21 @@ to sign the record, and this tool recomputes over the bytes exactly as
 stored. That is what makes offline verification meaningful months after the
 evidence was written.
 
+Some fields of an exported record are outside the signature by design
+(sengol's `UNSIGNED_FIELDS`), so no check here covers them:
+
+- an evaluator score's `reason` text and `reason_status` (sengol ADR-0078).
+  The signed `reason_digest` is a keyed HMAC under an install key this tool
+  never holds, so the text can be edited or erased without failing a check,
+  and this tool does not verify it. The digest itself is signed;
+- `CertificationRecord.evidence_pack_id` and `.anchor_record_id`,
+  `SaturationEvent.remediated_at`, the raw `config` and `reference` of a
+  regression case binding (their hashes are signed), and the `eval_result`,
+  `mcp_server_version`, `model`, token and cost fields of an
+  `AuthorizationDecisionRecord`;
+- `call_signature_manifests`, a transport-only field sengol removes before
+  storing a record.
+
 ```bash
 pip install sengol-verify
 sengol-verify bundle.json
@@ -78,8 +93,12 @@ Ed25519). This is enforced by a test that imports `sengol_verify` with
 ## Scope
 
 This tool implements the offline bundle format as of `payload_registry.py`
-in sengol at the time it was vendored. It covers every record family that
-format defines. It does not verify anything Sengol didn't sign — trace IDs,
+in sengol at the time it was vendored, including the call-start and
+accepted-set-lease families. Families sengol has since stopped signing
+(agent registration and secret records, retention and legal-hold records,
+and the like) stay registered so an older export still resolves; their
+field lists are not re-checked against sengol, whose classes for them are
+gone. It does not verify anything Sengol didn't sign — trace IDs,
 span IDs, and other fields documented as outside every canonical payload are
 not assessed by design (see check 6's detail text).
 

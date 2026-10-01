@@ -3,27 +3,29 @@
     "family": "AuditRecord",
     "version": 1,
     "raw": {
-      "record_id": "01a0e0b1-4e23-71ab-b176-89c88aed6f81",
+      "record_id": "01a0f820-12f3-7157-834d-e593c7f7c679",
       "agent_id": "loan-underwriter-bot",
       "agent_version": "1.0.0",
       "tenant_id": "acme-bank",
-      "timestamp": "2026-09-27T02:28:31.395789Z",
+      "timestamp": "2026-10-01T15:40:46.707420Z",
       "eval_result": {
-        "result_id": "f0914629-cc8d-4a7a-bc1f-22cc1fcce678",
+        "result_id": "5e7f1a90-4f11-474a-b501-e1cbf591f9ab",
         "agent_id": "loan-underwriter-bot",
         "agent_version": "1.0.0",
-        "timestamp": "2026-09-27T02:28:31.395745Z",
+        "timestamp": "2026-10-01T15:40:46.707383Z",
         "scores": [
           {
             "evaluator": "PIIEvaluator",
             "passed": true,
             "failure_mode": null,
-            "reason": "fixture",
+            "reason": "the customer wrote: my SIN is on file",
             "confidence": 1.0,
             "latency_ms": 0.0,
             "tokens_used": 0,
             "cost_usd": 0.0,
-            "trace_id": null
+            "trace_id": null,
+            "reason_digest": "hmac-sha256:6d7ff9842b544cef8879f4b7f5b2e6f4077d41ab2fb7d40a55a1900335c34d9d",
+            "reason_status": null
           }
         ],
         "overall_passed": true,
@@ -42,40 +44,50 @@
       "prev_hash": "",
       "key_id": "k1",
       "payload_version": 1,
-      "hmac_signature": "ab9d7102b915af0ce1ceec3cc8cfd15a282ee0c8ce60cf35248ded85db32a3cb",
+      "hmac_signature": "9eb8726930e424732ebc061e551d04ff5ca2a48432ddbd73060c2e97b63d9f34",
       "trace_id": null,
       "span_id": null,
       "signing_backend": "local",
-      "authority_model_version": null
+      "authority_model_version": null,
+      "call_id": null,
+      "lease_id": null,
+      "certification_id": null,
+      "pre_call_digest": null,
+      "post_response_digest": null,
+      "outcome": null,
+      "received_at": null,
+      "call_signature_manifests": null
     },
-    "canonical": "{\"record\":{\"agent_id\":\"loan-underwriter-bot\",\"agent_version\":\"1.0.0\",\"controlbook_id\":\"cb-osfi-e23\",\"controlbook_version\":\"2026.1\",\"eval_result\":{\"agent_id\":\"loan-underwriter-bot\",\"agent_version\":\"1.0.0\",\"overall_passed\":true,\"policies\":[\"OSFI_E23\"],\"result_id\":\"f0914629-cc8d-4a7a-bc1f-22cc1fcce678\",\"saturation_warning\":false,\"scores\":[{\"confidence\":1,\"cost_usd\":0,\"evaluator\":\"PIIEvaluator\",\"latency_ms\":0,\"passed\":true,\"reason\":\"fixture\",\"tokens_used\":0}],\"timestamp\":\"2026-09-27T02:28:31.395745Z\"},\"key_id\":\"k1\",\"payload_version\":1,\"policies\":[\"OSFI_E23\"],\"prev_hash\":\"\",\"record_id\":\"01a0e0b1-4e23-71ab-b176-89c88aed6f81\",\"sequence_number\":1,\"tenant_id\":\"acme-bank\",\"timestamp\":\"2026-09-27T02:28:31.395789Z\"},\"type\":\"AuditRecord\"}",
+    "canonical": "{\"record\":{\"agent_id\":\"loan-underwriter-bot\",\"agent_version\":\"1.0.0\",\"controlbook_id\":\"cb-osfi-e23\",\"controlbook_version\":\"2026.1\",\"eval_result\":{\"agent_id\":\"loan-underwriter-bot\",\"agent_version\":\"1.0.0\",\"overall_passed\":true,\"policies\":[\"OSFI_E23\"],\"result_id\":\"5e7f1a90-4f11-474a-b501-e1cbf591f9ab\",\"saturation_warning\":false,\"scores\":[{\"confidence\":1,\"cost_usd\":0,\"evaluator\":\"PIIEvaluator\",\"latency_ms\":0,\"passed\":true,\"reason_digest\":\"hmac-sha256:6d7ff9842b544cef8879f4b7f5b2e6f4077d41ab2fb7d40a55a1900335c34d9d\",\"tokens_used\":0}],\"timestamp\":\"2026-10-01T15:40:46.707383Z\"},\"key_id\":\"k1\",\"payload_version\":1,\"policies\":[\"OSFI_E23\"],\"prev_hash\":\"\",\"record_id\":\"01a0f820-12f3-7157-834d-e593c7f7c679\",\"sequence_number\":1,\"tenant_id\":\"acme-bank\",\"timestamp\":\"2026-10-01T15:40:46.707420Z\"},\"type\":\"AuditRecord\"}",
     "hmac_key": "not-a-real-secret-do-not-reuse"
   },
   {
     "family": "AuditRecord",
     "version": 2,
     "raw": {
-      "record_id": "01a0e0b1-4e24-7c46-8c3c-da6f1e8a09ca",
+      "record_id": "01a0f820-12f4-76be-ad10-eca59de645cd",
       "agent_id": "loan-underwriter-bot",
       "agent_version": "1.0.0",
       "tenant_id": "acme-bank",
-      "timestamp": "2026-09-27T02:28:31.396676Z",
+      "timestamp": "2026-10-01T15:40:46.708214Z",
       "eval_result": {
-        "result_id": "2cdb7faf-d35a-43f5-8b9b-eddfd6882b99",
+        "result_id": "8cde6f94-daa0-4ba7-9f06-78ad40135ff8",
         "agent_id": "loan-underwriter-bot",
         "agent_version": "1.0.0",
-        "timestamp": "2026-09-27T02:28:31.396650Z",
+        "timestamp": "2026-10-01T15:40:46.708195Z",
         "scores": [
           {
             "evaluator": "PIIEvaluator",
             "passed": true,
             "failure_mode": null,
-            "reason": "fixture",
+            "reason": "the customer wrote: my SIN is on file",
             "confidence": 1.0,
             "latency_ms": 0.0,
             "tokens_used": 0,
             "cost_usd": 0.0,
-            "trace_id": null
+            "trace_id": null,
+            "reason_digest": "hmac-sha256:9e78d09dd84a466d4fe4f3e0009cd80d8b55002432785dcd6a4e749bd6762ffb",
+            "reason_status": null
           }
         ],
         "overall_passed": true,
@@ -94,40 +106,50 @@
       "prev_hash": "",
       "key_id": "k1",
       "payload_version": 2,
-      "hmac_signature": "9cbba70a8ae94000945bcab0b04496eb307877eaad463756cbee6948a8c3782d",
+      "hmac_signature": "cea757497112120591dc305f4ee914f2ee886c8d67dd634414e067c6d77d4216",
       "trace_id": null,
       "span_id": null,
       "signing_backend": "local",
-      "authority_model_version": null
+      "authority_model_version": null,
+      "call_id": null,
+      "lease_id": null,
+      "certification_id": null,
+      "pre_call_digest": null,
+      "post_response_digest": null,
+      "outcome": null,
+      "received_at": null,
+      "call_signature_manifests": null
     },
-    "canonical": "{\"record\":{\"agent_id\":\"loan-underwriter-bot\",\"agent_version\":\"1.0.0\",\"controlbook_id\":\"cb-osfi-e23\",\"controlbook_version\":\"2026.1\",\"eval_result\":{\"agent_id\":\"loan-underwriter-bot\",\"agent_version\":\"1.0.0\",\"overall_passed\":true,\"policies\":[\"OSFI_E23\"],\"result_id\":\"2cdb7faf-d35a-43f5-8b9b-eddfd6882b99\",\"saturation_warning\":false,\"scores\":[{\"confidence\":1,\"cost_usd\":0,\"evaluator\":\"PIIEvaluator\",\"latency_ms\":0,\"passed\":true,\"reason\":\"fixture\",\"tokens_used\":0}],\"timestamp\":\"2026-09-27T02:28:31.396650Z\"},\"key_id\":\"k1\",\"payload_version\":2,\"policies\":[\"OSFI_E23\"],\"prev_hash\":\"\",\"record_id\":\"01a0e0b1-4e24-7c46-8c3c-da6f1e8a09ca\",\"sequence_number\":1,\"tenant_id\":\"acme-bank\",\"timestamp\":\"2026-09-27T02:28:31.396676Z\"},\"type\":\"AuditRecord\"}",
+    "canonical": "{\"record\":{\"agent_id\":\"loan-underwriter-bot\",\"agent_version\":\"1.0.0\",\"controlbook_id\":\"cb-osfi-e23\",\"controlbook_version\":\"2026.1\",\"eval_result\":{\"agent_id\":\"loan-underwriter-bot\",\"agent_version\":\"1.0.0\",\"overall_passed\":true,\"policies\":[\"OSFI_E23\"],\"result_id\":\"8cde6f94-daa0-4ba7-9f06-78ad40135ff8\",\"saturation_warning\":false,\"scores\":[{\"confidence\":1,\"cost_usd\":0,\"evaluator\":\"PIIEvaluator\",\"latency_ms\":0,\"passed\":true,\"reason_digest\":\"hmac-sha256:9e78d09dd84a466d4fe4f3e0009cd80d8b55002432785dcd6a4e749bd6762ffb\",\"tokens_used\":0}],\"timestamp\":\"2026-10-01T15:40:46.708195Z\"},\"key_id\":\"k1\",\"payload_version\":2,\"policies\":[\"OSFI_E23\"],\"prev_hash\":\"\",\"record_id\":\"01a0f820-12f4-76be-ad10-eca59de645cd\",\"sequence_number\":1,\"tenant_id\":\"acme-bank\",\"timestamp\":\"2026-10-01T15:40:46.708214Z\"},\"type\":\"AuditRecord\"}",
     "hmac_key": "not-a-real-secret-do-not-reuse"
   },
   {
     "family": "AuditRecord",
     "version": 3,
     "raw": {
-      "record_id": "01a0e0b1-4e25-756d-b8ce-e578adbd1a2d",
+      "record_id": "01a0f820-12f5-7075-bab0-f7c244046d3d",
       "agent_id": "loan-underwriter-bot",
       "agent_version": "1.0.0",
       "tenant_id": "acme-bank",
-      "timestamp": "2026-09-27T02:28:31.397105Z",
+      "timestamp": "2026-10-01T15:40:46.708553Z",
       "eval_result": {
-        "result_id": "36fb424b-a16a-4f72-a299-47edc4addf1e",
+        "result_id": "fb4a7d10-20c6-4a76-af56-a0c3625909e9",
         "agent_id": "loan-underwriter-bot",
         "agent_version": "1.0.0",
-        "timestamp": "2026-09-27T02:28:31.397084Z",
+        "timestamp": "2026-10-01T15:40:46.708540Z",
         "scores": [
           {
             "evaluator": "PIIEvaluator",
             "passed": true,
             "failure_mode": null,
-            "reason": "fixture",
+            "reason": "the customer wrote: my SIN is on file",
             "confidence": 1.0,
             "latency_ms": 0.0,
             "tokens_used": 0,
             "cost_usd": 0.0,
-            "trace_id": null
+            "trace_id": null,
+            "reason_digest": "hmac-sha256:de1f1dcf02c2d203c1fc778f953f457a109ef9b7469c342f3b6f58577a505153",
+            "reason_status": null
           }
         ],
         "overall_passed": true,
@@ -146,40 +168,50 @@
       "prev_hash": "",
       "key_id": "k1",
       "payload_version": 3,
-      "hmac_signature": "ec346c0af3a7ac09c143782bdf9846798685e1470651036e303cb7ac9b95f1ef",
+      "hmac_signature": "ff6a8468e6449c48e7146989bd2f5799e5e966839d7dd047d186d2cc5f4b3699",
       "trace_id": null,
       "span_id": null,
       "signing_backend": "local",
-      "authority_model_version": null
+      "authority_model_version": null,
+      "call_id": null,
+      "lease_id": null,
+      "certification_id": null,
+      "pre_call_digest": null,
+      "post_response_digest": null,
+      "outcome": null,
+      "received_at": null,
+      "call_signature_manifests": null
     },
-    "canonical": "{\"record\":{\"agent_id\":\"loan-underwriter-bot\",\"agent_version\":\"1.0.0\",\"controlbook_id\":\"cb-osfi-e23\",\"controlbook_version\":\"2026.1\",\"eval_result\":{\"agent_id\":\"loan-underwriter-bot\",\"agent_version\":\"1.0.0\",\"overall_passed\":true,\"policies\":[\"OSFI_E23\"],\"result_id\":\"36fb424b-a16a-4f72-a299-47edc4addf1e\",\"saturation_warning\":false,\"scores\":[{\"confidence\":1,\"cost_usd\":0,\"evaluator\":\"PIIEvaluator\",\"latency_ms\":0,\"passed\":true,\"reason\":\"fixture\",\"tokens_used\":0}],\"timestamp\":\"2026-09-27T02:28:31.397084Z\"},\"key_id\":\"k1\",\"payload_version\":3,\"policies\":[\"OSFI_E23\"],\"prev_hash\":\"\",\"record_id\":\"01a0e0b1-4e25-756d-b8ce-e578adbd1a2d\",\"sequence_number\":1,\"tenant_id\":\"acme-bank\",\"timestamp\":\"2026-09-27T02:28:31.397105Z\"},\"type\":\"AuditRecord\"}",
+    "canonical": "{\"record\":{\"agent_id\":\"loan-underwriter-bot\",\"agent_version\":\"1.0.0\",\"controlbook_id\":\"cb-osfi-e23\",\"controlbook_version\":\"2026.1\",\"eval_result\":{\"agent_id\":\"loan-underwriter-bot\",\"agent_version\":\"1.0.0\",\"overall_passed\":true,\"policies\":[\"OSFI_E23\"],\"result_id\":\"fb4a7d10-20c6-4a76-af56-a0c3625909e9\",\"saturation_warning\":false,\"scores\":[{\"confidence\":1,\"cost_usd\":0,\"evaluator\":\"PIIEvaluator\",\"latency_ms\":0,\"passed\":true,\"reason_digest\":\"hmac-sha256:de1f1dcf02c2d203c1fc778f953f457a109ef9b7469c342f3b6f58577a505153\",\"tokens_used\":0}],\"timestamp\":\"2026-10-01T15:40:46.708540Z\"},\"key_id\":\"k1\",\"payload_version\":3,\"policies\":[\"OSFI_E23\"],\"prev_hash\":\"\",\"record_id\":\"01a0f820-12f5-7075-bab0-f7c244046d3d\",\"sequence_number\":1,\"tenant_id\":\"acme-bank\",\"timestamp\":\"2026-10-01T15:40:46.708553Z\"},\"type\":\"AuditRecord\"}",
     "hmac_key": "not-a-real-secret-do-not-reuse"
   },
   {
     "family": "TombstoneRecord",
     "version": 2,
     "raw": {
-      "record_id": "01a0e0b1-4e26-7c06-801b-86359b7b37a1",
+      "record_id": "01a0f820-12f7-70bd-8ae3-5ad9007bf737",
       "agent_id": "loan-underwriter-bot",
       "agent_version": "1.0.0",
       "tenant_id": "acme-bank",
-      "timestamp": "2026-09-27T02:28:31.397473Z",
+      "timestamp": "2026-10-01T15:40:46.709118Z",
       "eval_result": {
-        "result_id": "2c08fcb4-29f3-47a3-8ecb-e73c23401e32",
+        "result_id": "dc1fa8a7-965f-4e6f-afc5-7ef4f65b8bb3",
         "agent_id": "loan-underwriter-bot",
         "agent_version": "1.0.0",
-        "timestamp": "2026-09-27T02:28:31.397447Z",
+        "timestamp": "2026-10-01T15:40:46.709101Z",
         "scores": [
           {
             "evaluator": "PIIEvaluator",
             "passed": true,
             "failure_mode": null,
-            "reason": "fixture",
+            "reason": "the customer wrote: my SIN is on file",
             "confidence": 1.0,
             "latency_ms": 0.0,
             "tokens_used": 0,
             "cost_usd": 0.0,
-            "trace_id": null
+            "trace_id": null,
+            "reason_digest": "hmac-sha256:24aa11b187029d66851a59f3563a030bf91f3262bf1cf5ae6be73db445a15253",
+            "reason_status": null
           }
         ],
         "overall_passed": true,
@@ -198,14 +230,22 @@
       "prev_hash": "",
       "key_id": "k1",
       "payload_version": 2,
-      "hmac_signature": "49eb35453a796783d841c07e00f7921900298751904b6808689aee1fb940ab07",
+      "hmac_signature": "8c8c2c15ff15507fb95a07551847ad75f258065701749fb37f72f16256720cd6",
       "trace_id": null,
       "span_id": null,
       "signing_backend": "local",
       "authority_model_version": null,
+      "call_id": null,
+      "lease_id": null,
+      "certification_id": null,
+      "pre_call_digest": null,
+      "post_response_digest": null,
+      "outcome": null,
+      "received_at": null,
+      "call_signature_manifests": null,
       "record_type": "sengol.audit.tombstone",
       "reason": "right to erasure",
-      "purged_at": "2026-09-27T02:28:31.397452Z",
+      "purged_at": "2026-09-27T02:28:31Z",
       "operator_id": "op-1",
       "subject_ref": "ticket-1",
       "purged_trace_ids": [
@@ -214,9 +254,10 @@
       ],
       "purged_count": 2,
       "requester_principal_id": "principal:alice",
-      "index_forget_incomplete": null
+      "index_forget_incomplete": null,
+      "reasons_erased_count": null
     },
-    "canonical": "{\"record\":{\"agent_id\":\"loan-underwriter-bot\",\"agent_version\":\"1.0.0\",\"eval_result\":{\"agent_id\":\"loan-underwriter-bot\",\"agent_version\":\"1.0.0\",\"overall_passed\":true,\"policies\":[\"OSFI_E23\"],\"result_id\":\"2c08fcb4-29f3-47a3-8ecb-e73c23401e32\",\"saturation_warning\":false,\"scores\":[{\"confidence\":1,\"cost_usd\":0,\"evaluator\":\"PIIEvaluator\",\"latency_ms\":0,\"passed\":true,\"reason\":\"fixture\",\"tokens_used\":0}],\"timestamp\":\"2026-09-27T02:28:31.397447Z\"},\"key_id\":\"k1\",\"operator_id\":\"op-1\",\"payload_version\":2,\"policies\":[\"OSFI_E23\"],\"prev_hash\":\"\",\"purged_at\":\"2026-09-27T02:28:31.397452Z\",\"purged_count\":2,\"purged_trace_ids\":[\"t1\",\"t2\"],\"reason\":\"right to erasure\",\"record_id\":\"01a0e0b1-4e26-7c06-801b-86359b7b37a1\",\"record_type\":\"sengol.audit.tombstone\",\"requester_principal_id\":\"principal:alice\",\"sequence_number\":1,\"subject_ref\":\"ticket-1\",\"tenant_id\":\"acme-bank\",\"timestamp\":\"2026-09-27T02:28:31.397473Z\"},\"type\":\"TombstoneRecord\"}",
+    "canonical": "{\"record\":{\"agent_id\":\"loan-underwriter-bot\",\"agent_version\":\"1.0.0\",\"eval_result\":{\"agent_id\":\"loan-underwriter-bot\",\"agent_version\":\"1.0.0\",\"overall_passed\":true,\"policies\":[\"OSFI_E23\"],\"result_id\":\"dc1fa8a7-965f-4e6f-afc5-7ef4f65b8bb3\",\"saturation_warning\":false,\"scores\":[{\"confidence\":1,\"cost_usd\":0,\"evaluator\":\"PIIEvaluator\",\"latency_ms\":0,\"passed\":true,\"reason_digest\":\"hmac-sha256:24aa11b187029d66851a59f3563a030bf91f3262bf1cf5ae6be73db445a15253\",\"tokens_used\":0}],\"timestamp\":\"2026-10-01T15:40:46.709101Z\"},\"key_id\":\"k1\",\"operator_id\":\"op-1\",\"payload_version\":2,\"policies\":[\"OSFI_E23\"],\"prev_hash\":\"\",\"purged_at\":\"2026-09-27T02:28:31Z\",\"purged_count\":2,\"purged_trace_ids\":[\"t1\",\"t2\"],\"reason\":\"right to erasure\",\"record_id\":\"01a0f820-12f7-70bd-8ae3-5ad9007bf737\",\"record_type\":\"sengol.audit.tombstone\",\"requester_principal_id\":\"principal:alice\",\"sequence_number\":1,\"subject_ref\":\"ticket-1\",\"tenant_id\":\"acme-bank\",\"timestamp\":\"2026-10-01T15:40:46.709118Z\"},\"type\":\"TombstoneRecord\"}",
     "hmac_key": "not-a-real-secret-do-not-reuse"
   },
   {
@@ -415,5 +456,307 @@
     },
     "canonical": "{\"record\":{\"agent_id\":\"loan-underwriter-bot\",\"failure_id\":\"01a0e0bc-9784-78b5-aaa9-e7bd1d21d92d\",\"key_id\":\"k1\",\"payload_version\":1,\"reason\":\"cannot be replayed offline (requires live market data)\",\"tenant_id\":\"acme-bank\",\"waived_at\":\"2026-09-27T02:40:51.075837Z\",\"waived_by\":\"reviewer-3\"},\"type\":\"ProductionFailureWaiverRecord\"}",
     "hmac_key": "not-a-real-secret-do-not-reuse"
+  },
+  {
+    "family": "AuditRecord",
+    "version": 3,
+    "raw": {
+      "record_id": "01a0f820-12f6-7a12-b46e-86499863e87f",
+      "agent_id": "loan-underwriter-bot",
+      "agent_version": "1.0.0",
+      "tenant_id": "acme-bank",
+      "timestamp": "2026-10-01T15:40:46.708829Z",
+      "eval_result": {
+        "result_id": "a2dd7cd9-ad8f-4b5c-8f7e-63e39d05d042",
+        "agent_id": "loan-underwriter-bot",
+        "agent_version": "1.0.0",
+        "timestamp": "2026-10-01T15:40:46.708817Z",
+        "scores": [
+          {
+            "evaluator": "PIIEvaluator",
+            "passed": true,
+            "failure_mode": null,
+            "reason": "",
+            "confidence": 1.0,
+            "latency_ms": 0.0,
+            "tokens_used": 0,
+            "cost_usd": 0.0,
+            "trace_id": null,
+            "reason_digest": "hmac-sha256:74b4209c65e261cc1db32023db3aa61f7901a31f1d25242f4f024d3674b49634",
+            "reason_status": "ERASED"
+          }
+        ],
+        "overall_passed": true,
+        "policies": [
+          "OSFI_E23"
+        ],
+        "saturation_warning": false
+      },
+      "policies": [
+        "OSFI_E23"
+      ],
+      "controlbook_id": "cb-osfi-e23",
+      "controlbook_version": "2026.1",
+      "eval_run_id": null,
+      "sequence_number": 1,
+      "prev_hash": "",
+      "key_id": "k1",
+      "payload_version": 3,
+      "hmac_signature": "ac74260843267ad610024c8ad5723244785d29990c4b2ac6e137d77e01e99ece",
+      "trace_id": null,
+      "span_id": null,
+      "signing_backend": "local",
+      "authority_model_version": null,
+      "call_id": null,
+      "lease_id": null,
+      "certification_id": null,
+      "pre_call_digest": null,
+      "post_response_digest": null,
+      "outcome": null,
+      "received_at": null,
+      "call_signature_manifests": null
+    },
+    "canonical": "{\"record\":{\"agent_id\":\"loan-underwriter-bot\",\"agent_version\":\"1.0.0\",\"controlbook_id\":\"cb-osfi-e23\",\"controlbook_version\":\"2026.1\",\"eval_result\":{\"agent_id\":\"loan-underwriter-bot\",\"agent_version\":\"1.0.0\",\"overall_passed\":true,\"policies\":[\"OSFI_E23\"],\"result_id\":\"a2dd7cd9-ad8f-4b5c-8f7e-63e39d05d042\",\"saturation_warning\":false,\"scores\":[{\"confidence\":1,\"cost_usd\":0,\"evaluator\":\"PIIEvaluator\",\"latency_ms\":0,\"passed\":true,\"reason_digest\":\"hmac-sha256:74b4209c65e261cc1db32023db3aa61f7901a31f1d25242f4f024d3674b49634\",\"tokens_used\":0}],\"timestamp\":\"2026-10-01T15:40:46.708817Z\"},\"key_id\":\"k1\",\"payload_version\":3,\"policies\":[\"OSFI_E23\"],\"prev_hash\":\"\",\"record_id\":\"01a0f820-12f6-7a12-b46e-86499863e87f\",\"sequence_number\":1,\"tenant_id\":\"acme-bank\",\"timestamp\":\"2026-10-01T15:40:46.708829Z\"},\"type\":\"AuditRecord\"}",
+    "hmac_key": "not-a-real-secret-do-not-reuse",
+    "case": "reason_erased"
+  },
+  {
+    "family": "AcceptedSetLease",
+    "version": 1,
+    "raw": {
+      "record_id": "01a0f820-12f8-72b3-a20d-ee46b6d0b5bb",
+      "agent_id": "loan-underwriter-bot",
+      "agent_version": "1.0.0",
+      "tenant_id": "acme-bank",
+      "timestamp": "2026-10-01T15:40:46.709479Z",
+      "eval_result": {
+        "result_id": "8f146f7b-7d23-4a2a-904e-da338f4cca4f",
+        "agent_id": "loan-underwriter-bot",
+        "agent_version": "1.0.0",
+        "timestamp": "2026-10-01T15:40:46.709459Z",
+        "scores": [
+          {
+            "evaluator": "PIIEvaluator",
+            "passed": true,
+            "failure_mode": null,
+            "reason": "the customer wrote: my SIN is on file",
+            "confidence": 1.0,
+            "latency_ms": 0.0,
+            "tokens_used": 0,
+            "cost_usd": 0.0,
+            "trace_id": null,
+            "reason_digest": "hmac-sha256:92b71af58aac15a60f85c7108c01f113621b33fe5c15fd393219169f0a3904f0",
+            "reason_status": null
+          }
+        ],
+        "overall_passed": true,
+        "policies": [
+          "OSFI_E23"
+        ],
+        "saturation_warning": false
+      },
+      "policies": [],
+      "controlbook_id": null,
+      "controlbook_version": null,
+      "eval_run_id": null,
+      "sequence_number": 1,
+      "prev_hash": "",
+      "key_id": "k1",
+      "payload_version": 1,
+      "hmac_signature": "683f4505e7f87d22b04114d33b16878437129ce76c27f59d2110bada9082b8fb",
+      "trace_id": null,
+      "span_id": null,
+      "signing_backend": "local",
+      "authority_model_version": null,
+      "call_id": null,
+      "lease_id": null,
+      "certification_id": null,
+      "pre_call_digest": null,
+      "post_response_digest": null,
+      "outcome": null,
+      "received_at": null,
+      "call_signature_manifests": null,
+      "record_type": "sengol.behaviour.lease",
+      "accepted_cert_ids": [
+        "01a0e0ae-9261-7e42-8555-802b216f7a26",
+        "01a0e0ae-9261-7e42-8555-802b216f7a25"
+      ],
+      "artifact_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "artifact_mutable": false
+    },
+    "canonical": "{\"record\":{\"accepted_cert_ids\":[\"01a0e0ae-9261-7e42-8555-802b216f7a25\",\"01a0e0ae-9261-7e42-8555-802b216f7a26\"],\"agent_id\":\"loan-underwriter-bot\",\"agent_version\":\"1.0.0\",\"artifact_digest\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"artifact_mutable\":false,\"eval_result\":{\"agent_id\":\"loan-underwriter-bot\",\"agent_version\":\"1.0.0\",\"overall_passed\":true,\"policies\":[\"OSFI_E23\"],\"result_id\":\"8f146f7b-7d23-4a2a-904e-da338f4cca4f\",\"saturation_warning\":false,\"scores\":[{\"confidence\":1,\"cost_usd\":0,\"evaluator\":\"PIIEvaluator\",\"latency_ms\":0,\"passed\":true,\"reason_digest\":\"hmac-sha256:92b71af58aac15a60f85c7108c01f113621b33fe5c15fd393219169f0a3904f0\",\"tokens_used\":0}],\"timestamp\":\"2026-10-01T15:40:46.709459Z\"},\"key_id\":\"k1\",\"payload_version\":1,\"policies\":[],\"prev_hash\":\"\",\"record_id\":\"01a0f820-12f8-72b3-a20d-ee46b6d0b5bb\",\"record_type\":\"sengol.behaviour.lease\",\"sequence_number\":1,\"tenant_id\":\"acme-bank\",\"timestamp\":\"2026-10-01T15:40:46.709479Z\"},\"type\":\"AcceptedSetLease\"}",
+    "hmac_key": "not-a-real-secret-do-not-reuse"
+  },
+  {
+    "family": "CallStartedRecord",
+    "version": 1,
+    "raw": {
+      "record_id": "01a0f820-12f9-72da-8a2f-9c5f822e514c",
+      "agent_id": "loan-underwriter-bot",
+      "agent_version": "1.0.0",
+      "tenant_id": "acme-bank",
+      "timestamp": "2026-10-01T15:40:46.709769Z",
+      "eval_result": {
+        "result_id": "4199728f-c9b2-4aeb-ad74-9198619cc64f",
+        "agent_id": "loan-underwriter-bot",
+        "agent_version": "1.0.0",
+        "timestamp": "2026-10-01T15:40:46.709754Z",
+        "scores": [
+          {
+            "evaluator": "PIIEvaluator",
+            "passed": true,
+            "failure_mode": null,
+            "reason": "the customer wrote: my SIN is on file",
+            "confidence": 1.0,
+            "latency_ms": 0.0,
+            "tokens_used": 0,
+            "cost_usd": 0.0,
+            "trace_id": null,
+            "reason_digest": "hmac-sha256:89b3ba7482846b2c3b7afa7886d43a2cd24a98e8580d310255e6578c624f92fd",
+            "reason_status": null
+          }
+        ],
+        "overall_passed": true,
+        "policies": [
+          "OSFI_E23"
+        ],
+        "saturation_warning": false
+      },
+      "policies": [],
+      "controlbook_id": null,
+      "controlbook_version": null,
+      "eval_run_id": null,
+      "sequence_number": 2,
+      "prev_hash": "",
+      "key_id": "k1",
+      "payload_version": 1,
+      "hmac_signature": "6aa9919409039ab2044579e943c0065d35a16b2beb2d72d57425037284d30a70",
+      "trace_id": null,
+      "span_id": null,
+      "signing_backend": "local",
+      "authority_model_version": null,
+      "call_id": "01a0e0ae-9261-7e42-8555-802b216f7a27",
+      "lease_id": "01a0f820-12f8-72b3-a20d-ee46b6d0b5bb",
+      "certification_id": null,
+      "pre_call_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "post_response_digest": null,
+      "outcome": null,
+      "received_at": "2026-10-01T15:40:46.709479Z",
+      "call_signature_manifests": null,
+      "record_type": "sengol.call.started"
+    },
+    "canonical": "{\"record\":{\"agent_id\":\"loan-underwriter-bot\",\"agent_version\":\"1.0.0\",\"call_id\":\"01a0e0ae-9261-7e42-8555-802b216f7a27\",\"eval_result\":{\"agent_id\":\"loan-underwriter-bot\",\"agent_version\":\"1.0.0\",\"overall_passed\":true,\"policies\":[\"OSFI_E23\"],\"result_id\":\"4199728f-c9b2-4aeb-ad74-9198619cc64f\",\"saturation_warning\":false,\"scores\":[{\"confidence\":1,\"cost_usd\":0,\"evaluator\":\"PIIEvaluator\",\"latency_ms\":0,\"passed\":true,\"reason_digest\":\"hmac-sha256:89b3ba7482846b2c3b7afa7886d43a2cd24a98e8580d310255e6578c624f92fd\",\"tokens_used\":0}],\"timestamp\":\"2026-10-01T15:40:46.709754Z\"},\"key_id\":\"k1\",\"lease_id\":\"01a0f820-12f8-72b3-a20d-ee46b6d0b5bb\",\"payload_version\":1,\"policies\":[],\"pre_call_digest\":\"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"prev_hash\":\"\",\"received_at\":\"2026-10-01T15:40:46.709479Z\",\"record_id\":\"01a0f820-12f9-72da-8a2f-9c5f822e514c\",\"record_type\":\"sengol.call.started\",\"sequence_number\":2,\"tenant_id\":\"acme-bank\",\"timestamp\":\"2026-10-01T15:40:46.709769Z\"},\"type\":\"CallStartedRecord\"}",
+    "hmac_key": "not-a-real-secret-do-not-reuse"
+  },
+  {
+    "family": "AgentCallRecord",
+    "version": 4,
+    "raw": {
+      "record_id": "01a0f820-12fa-72ae-a67c-432d368285db",
+      "agent_id": "loan-underwriter-bot",
+      "agent_version": "1.0.0",
+      "tenant_id": "acme-bank",
+      "timestamp": "2026-10-01T15:40:46.710186Z",
+      "eval_result": {
+        "result_id": "82084a60-5b8e-4240-a6dd-6dec79a1c26e",
+        "agent_id": "loan-underwriter-bot",
+        "agent_version": "1.0.0",
+        "timestamp": "2026-10-01T15:40:46.710167Z",
+        "scores": [
+          {
+            "evaluator": "PIIEvaluator",
+            "passed": true,
+            "failure_mode": null,
+            "reason": "the customer wrote: my SIN is on file",
+            "confidence": 1.0,
+            "latency_ms": 0.0,
+            "tokens_used": 0,
+            "cost_usd": 0.0,
+            "trace_id": null,
+            "reason_digest": "hmac-sha256:879e8ed9aa38a5a63c7b878cd9136da879f802df2cdff74a83f8b77efa942211",
+            "reason_status": null
+          }
+        ],
+        "overall_passed": true,
+        "policies": [
+          "OSFI_E23"
+        ],
+        "saturation_warning": false
+      },
+      "policies": [],
+      "controlbook_id": null,
+      "controlbook_version": null,
+      "eval_run_id": null,
+      "sequence_number": 3,
+      "prev_hash": "",
+      "key_id": "k1",
+      "payload_version": 4,
+      "hmac_signature": "21599443ff3b23262dd3537480472a381b96307355ac566ad0e88df9988952f2",
+      "trace_id": null,
+      "span_id": null,
+      "signing_backend": "local",
+      "authority_model_version": null,
+      "call_id": null,
+      "lease_id": null,
+      "certification_id": null,
+      "pre_call_digest": null,
+      "post_response_digest": null,
+      "outcome": null,
+      "received_at": null,
+      "call_signature_manifests": {
+        "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc": "raw manifest sidecar"
+      },
+      "record_type": "sengol.agent.call",
+      "caller_agent_id": "orchestrator",
+      "callee_agent_id": "loan-underwriter-bot",
+      "declared": true,
+      "authorization_record_id": "auth-1",
+      "risk_tier_escalation": false,
+      "mcp_server_version": null,
+      "mcp_tool_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "mcp_tool_pinned_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "canonical": "{\"record\":{\"agent_id\":\"loan-underwriter-bot\",\"agent_version\":\"1.0.0\",\"authorization_record_id\":\"auth-1\",\"callee_agent_id\":\"loan-underwriter-bot\",\"caller_agent_id\":\"orchestrator\",\"declared\":true,\"eval_result\":{\"agent_id\":\"loan-underwriter-bot\",\"agent_version\":\"1.0.0\",\"overall_passed\":true,\"policies\":[\"OSFI_E23\"],\"result_id\":\"82084a60-5b8e-4240-a6dd-6dec79a1c26e\",\"saturation_warning\":false,\"scores\":[{\"confidence\":1,\"cost_usd\":0,\"evaluator\":\"PIIEvaluator\",\"latency_ms\":0,\"passed\":true,\"reason_digest\":\"hmac-sha256:879e8ed9aa38a5a63c7b878cd9136da879f802df2cdff74a83f8b77efa942211\",\"tokens_used\":0}],\"timestamp\":\"2026-10-01T15:40:46.710167Z\"},\"key_id\":\"k1\",\"mcp_tool_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"mcp_tool_pinned_hash\":\"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"payload_version\":4,\"policies\":[],\"prev_hash\":\"\",\"record_id\":\"01a0f820-12fa-72ae-a67c-432d368285db\",\"record_type\":\"sengol.agent.call\",\"risk_tier_escalation\":false,\"sequence_number\":3,\"tenant_id\":\"acme-bank\",\"timestamp\":\"2026-10-01T15:40:46.710186Z\"},\"type\":\"AgentCallRecord\"}",
+    "hmac_key": "not-a-real-secret-do-not-reuse",
+    "case": "manifest_sidecar"
+  },
+  {
+    "family": "CertificationRecord",
+    "version": 4,
+    "raw": {
+      "cert_id": "01a0f820-12fb-75d4-a041-2849be02a83f",
+      "agent_id": "loan-underwriter-bot",
+      "agent_version": "1.0.0",
+      "tenant_id": "acme-bank",
+      "run_id": "01a0e0ae-9261-7e42-8555-802b216f7a30",
+      "certified_risk_tier": "TIER_2",
+      "policies": [
+        "OSFI_E23"
+      ],
+      "gate_passed": true,
+      "certified_at": "2026-10-01T15:40:46.710541Z",
+      "certified_by": "reviewer-1",
+      "valid_until": null,
+      "conditions": [],
+      "artifact_digest": null,
+      "call_set_digest": null,
+      "mounted_content": null,
+      "environment_mounts": null,
+      "coverage_mode": null,
+      "coverage_statement": null,
+      "acknowledged_unversioned": null,
+      "endpoint_equivalents": null,
+      "supersedes": null,
+      "run_payload_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "evidence_pack_id": null,
+      "anchor_record_id": "01a0f820-12f8-72b3-a20d-ee46b6d0b5bb",
+      "key_id": "k1",
+      "payload_version": 4,
+      "hmac_signature": "4fd67e831f4b1617026dbef687098e4a00c5a800042c08e2956c04839db32bae",
+      "signing_backend": "local"
+    },
+    "canonical": "{\"record\":{\"agent_id\":\"loan-underwriter-bot\",\"agent_version\":\"1.0.0\",\"cert_id\":\"01a0f820-12fb-75d4-a041-2849be02a83f\",\"certified_at\":\"2026-10-01T15:40:46.710541Z\",\"certified_by\":\"reviewer-1\",\"certified_risk_tier\":\"TIER_2\",\"conditions\":[],\"gate_passed\":true,\"key_id\":\"k1\",\"payload_version\":4,\"policies\":[\"OSFI_E23\"],\"run_id\":\"01a0e0ae-9261-7e42-8555-802b216f7a30\",\"run_payload_sha256\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"tenant_id\":\"acme-bank\"},\"type\":\"CertificationRecord\"}",
+    "hmac_key": "not-a-real-secret-do-not-reuse",
+    "case": "anchor_record_id"
   }
 ]

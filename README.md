@@ -20,8 +20,11 @@ in the file:
    checked against its record's payload hash using the embedded public key.
 5. **Merkle anchor coverage** — each anchor receipt's Merkle root is
    recomputed from its leaf hashes and compared.
-6. **Field coverage** — no record carries a field outside what its
-   `payload_version` actually signs (a version-skew forgery surface).
+6. **Field coverage** — reported as its own result row, but it cannot
+   FAIL. Every populated field is signed at every `payload_version` except
+   the family's unsigned fields (listed under "How"), so no version leaves a
+   field outside the signature, and the check always reports PASS. It does
+   not detect an edit to an unsigned field.
 
 If the bundle has an optional top-level `regression_evidence` section
 (`{"format": "sengol-regression-evidence/v1", "agent_id": ..., "records":
@@ -29,7 +32,7 @@ If the bundle has an optional top-level `regression_evidence` section
 is added. Any other `format` FAILs, and every record's signed `agent_id` must
 equal the section's `agent_id`. Every family is one of the six regression
 families (unknown = FAIL), each record's canonical payload / HMAC (UNVERIFIABLE without
-`public_keys["hmac_material"]`) and field coverage check out, and every link
+`public_keys["hmac_material"]`) checks out, and every link
 resolves (case -> failure, retirement -> case, waiver -> failure, run
 `case_results` -> case, certification `run_id` -> a run in the section, and
 its `run_payload_sha256`, when present, -> that run's canonical-payload hash,
@@ -100,7 +103,7 @@ and the like) stay registered so an older export still resolves; their
 field lists are not re-checked against sengol, whose classes for them are
 gone. It does not verify anything Sengol didn't sign — trace IDs,
 span IDs, and other fields documented as outside every canonical payload are
-not assessed by design (see check 6's detail text).
+not assessed by design.
 
 ## License
 

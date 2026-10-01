@@ -20,27 +20,36 @@ in the file:
    checked against its record's payload hash using the embedded public key.
 5. **Merkle anchor coverage** — each anchor receipt's Merkle root is
    recomputed from its leaf hashes and compared.
-6. **Field coverage** — reported as its own result row, but it cannot
-   FAIL. Every populated field is signed at every `payload_version` except
-   the family's unsigned fields (listed under "How"), so no version leaves a
-   field outside the signature, and the check always reports PASS. It does
-   not detect an edit to an unsigned field.
+6. **Field coverage** — a report, not a check: it never FAILs. Every set
+   field is signed except the signature fields, the family's unsigned fields
+   and a few nested ones (an evaluator score's `reason` and `reason_status`,
+   a regression case binding's `config` and `reference`; all listed under
+   "How"), so steps 1-5 already cover everything else. This step names
+   which of those by-design unsigned fields the bundle's records actually
+   carry (for example `hmac_signature`, `eval_result.scores.reason`), so you
+   know which values no check vouches for. Its row always reads PASS; it does
+   not detect an edit to an unsigned field, and a record with an unregistered
+   `record_type` is not assessed (the detail says how many).
 
 If the bundle has an optional top-level `regression_evidence` section
 (`{"format": "sengol-regression-evidence/v1", "agent_id": ..., "records":
 [{"family": ..., "record": {...}}]}`), a seventh step, **`regression_lineage`**,
 is added. Any other `format` FAILs, and every record's signed `agent_id` must
 equal the section's `agent_id`. Every family is one of the six regression
-families (unknown = FAIL), each record's canonical payload / HMAC (UNVERIFIABLE without
+families (failure, case, run, certification, and the unsigned retirement and
+waiver; unknown = FAIL), each record's canonical payload / HMAC (UNVERIFIABLE without
 `public_keys["hmac_material"]`) checks out, and every link
 resolves (case -> failure, retirement -> case, waiver -> failure, run
 `case_results` -> case, certification `run_id` -> a run in the section, and
 its `run_payload_sha256`, when present, -> that run's canonical-payload hash,
 with the same `agent_version` as the run). Dangling ids and hash mismatches
-FAIL and are named. These records are signed but not chained, so a deleted
-record is not detectable. Retirements and waivers exported unsigned (sengol
-ADR-0024, families `RegressionCaseRetirement` and `ProductionFailureWaiver`)
-have no HMAC to check; only their `agent_id` and links are verified. Bundles without the section, or with it set to `null`, verify exactly as
+FAIL and are named. The signed records are not chained, so a deleted
+record is not detectable. Retirements and waivers are exported unsigned (sengol
+ADR-0024, families `RegressionCaseRetirement` and `ProductionFailureWaiver`),
+so they have no HMAC to check; only their `agent_id` and links are verified.
+The old signed families `RegressionCaseRetirementRecord` and
+`ProductionFailureWaiverRecord` are not registered and FAIL as unknown.
+Bundles without the section, or with it set to `null`, verify exactly as
 before.
 
 The verdict is **PASS**, **FAIL** (tampering or a broken chain), or
@@ -56,7 +65,8 @@ stored. That is what makes offline verification meaningful months after the
 evidence was written.
 
 Some fields of an exported record are outside the signature by design
-(sengol's `UNSIGNED_FIELDS`), so no check here covers them:
+(sengol's `UNSIGNED_FIELDS`), so no check here covers them; the
+`field_coverage` row lists the ones a bundle's records carry:
 
 - an evaluator score's `reason` text and `reason_status` (sengol ADR-0078).
   The signed `reason_digest` is a keyed HMAC under an install key this tool
@@ -97,13 +107,19 @@ Ed25519). This is enforced by a test that imports `sengol_verify` with
 
 This tool implements the offline bundle format as of `payload_registry.py`
 in sengol at the time it was vendored, including the call-start and
-accepted-set-lease families. Families sengol has since stopped signing
-(agent registration and secret records, retention and legal-hold records,
-and the like) stay registered so an older export still resolves; their
-field lists are not re-checked against sengol, whose classes for them are
-gone. It does not verify anything Sengol didn't sign — trace IDs,
-span IDs, and other fields documented as outside every canonical payload are
-not assessed by design.
+accepted-set-lease families. It registers only families sengol signs: the
+families sengol has stopped signing (agent registration and secret records,
+retention and legal-hold records, signed regression retirements and waivers,
+and the like) are not registered. A bundle record whose `record_type` is not
+registered, whether one of those or a type this tool has never heard of, has
+no canonical payload here: `payload_hash_integrity` FAILs and names the
+record and its `record_type`, and the other steps that need its payload fail
+with it. It is never verified as a generic record. A `regression_evidence`
+entry naming a family that is not one of the six regression families FAILs as
+an unknown family. An export of such a record from an older sengol therefore cannot be
+verified with this version. It does not verify anything Sengol didn't sign —
+trace IDs, span IDs, and other fields documented as outside every canonical
+payload are not assessed by design.
 
 ## License
 

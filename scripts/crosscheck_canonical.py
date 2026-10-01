@@ -6,14 +6,19 @@ Run from the sengol checkout with sengol-verify's src on the path:
         uv run python /path/to/sengol-verify/scripts/crosscheck_canonical.py
 
 Not part of the test suite (it depends on sengol being importable). It
-compares only the families both sides still register: sengol's
-``payload_registry._VERSIONS`` and the vendored ``_VERSIONS`` are intersected,
-their version tuples are compared, and every record built below is signed by
-sengol and re-canonicalized by the vendored copy. Families sengol no longer
-signs are listed, not checked. Exits 1 on any mismatch or a record whose
-family is not in the intersection.
+compares sengol's ``payload_registry._VERSIONS`` with the vendored
+``_VERSIONS``: the two must name the same families with the same version
+tuples, and every record built below is signed by sengol and
+re-canonicalized by the vendored copy. Exits 1 on any mismatch, a record whose
+family is not in both registries, a family only one side registers (a family
+sengol stopped signing must be deleted from the vendored copy), or a
+``field_coverage`` step that disagrees with sengol's: for each record the
+unsigned top-level fields must be the same, and the vendored step may add
+only nested paths (``eval_result.scores.reason``), which sengol's does not
+name.
 """
 
+import ast
 import sys
 from datetime import UTC, datetime
 from uuid import UUID
@@ -39,13 +44,17 @@ from sengol.core.types import (
     SaturationEvent,
     TombstoneRecord,
 )
+from sengol.governance.offline_verify import _check_field_coverage as SENGOL_FIELD_COVERAGE
 
 from sengol_verify.canonical import _VERSIONS as VERIFY_VERSIONS
 from sengol_verify.canonical import Record, family_for
+from sengol_verify.verify import _check_field_coverage as VERIFY_FIELD_COVERAGE
 
 SHARED = frozenset(SENGOL_VERSIONS) & frozenset(VERIFY_VERSIONS)
 CHECKED: set[str] = set()
 FAILURES: list[str] = []
+#: field_coverage fields seen on at least one record, by name (see _check_coverage).
+COVERAGE_SEEN: set[str] = set()
 
 TENANT = "acme-bank"
 AGENT = "loan-underwriter-bot"
@@ -59,6 +68,30 @@ def _eval_result() -> EvalResult:
         overall_passed=True,
         policies=["OSFI_E23"],
     )
+
+
+def _listed(detail: str) -> list[str]:
+    return ast.literal_eval(detail[detail.rindex("[") :])
+
+
+def _check_coverage(real, mine: Record, label: str) -> None:
+    """Both ``field_coverage`` steps name the same unsigned top-level fields
+    for *real*; the vendored one may add only dotted nested paths. Sengol's
+    step reads ``record_id``, so it runs only on an ``AuditRecord`` subtype."""
+    if not isinstance(real, AuditRecord):
+        print(f"SKIP: field_coverage {label}: not an AuditRecord, sengol's step cannot read it")
+        return
+    theirs = _listed(SENGOL_FIELD_COVERAGE([real]).detail)
+    ours = _listed(VERIFY_FIELD_COVERAGE([mine]).detail)
+    top = [name for name in ours if "." not in name]
+    COVERAGE_SEEN.update(ours)
+    if top == theirs:
+        print(f"OK: field_coverage {label}: {ours}")
+        return
+    FAILURES.append(f"field_coverage {label}")
+    print(f"MISMATCH: field_coverage {label}")
+    print("  sengol:", theirs)
+    print("  mine:  ", ours)
 
 
 def _check(real, family: str | None = None) -> None:
@@ -79,11 +112,12 @@ def _check(real, family: str | None = None) -> None:
     mine_bytes = mine.canonical_payload()
     if real_bytes == mine_bytes:
         print(f"OK: {label}")
-        return
-    FAILURES.append(label)
-    print(f"MISMATCH: {label}")
-    print("  real:", real_bytes)
-    print("  mine:", mine_bytes)
+    else:
+        FAILURES.append(label)
+        print(f"MISMATCH: {label}")
+        print("  real:", real_bytes)
+        print("  mine:", mine_bytes)
+    _check_coverage(real, mine, label)
 
 
 def main() -> None:
@@ -206,6 +240,28 @@ def main() -> None:
             controlbook_id="cb-1",
             controlbook_version="v1",
             sequence_number=1,
+            prev_hash="",
+            key_id="k1",
+            payload_version=3,
+        ).sign("hmac-key")
+    )
+
+    # AuditRecord whose score carries `reason` text — unsigned by path
+    # (eval_result.scores.reason), which sengol's field_coverage does not name.
+    _check(
+        AuditRecord(
+            agent_id=AGENT,
+            agent_version="1.0.0",
+            tenant_id=TENANT,
+            eval_result=EvalResult(
+                agent_id=AGENT,
+                agent_version="1.0.0",
+                scores=[EvalScore(evaluator="x", passed=True, reason="because")],
+                overall_passed=True,
+                policies=["OSFI_E23"],
+            ),
+            policies=["OSFI_E23"],
+            sequence_number=2,
             prev_hash="",
             key_id="k1",
             payload_version=3,
@@ -376,10 +432,14 @@ def report() -> int:
     skew = sorted(f for f in SHARED if SENGOL_VERSIONS[f] != VERIFY_VERSIONS[f])
     print(f"\nshared families: {len(SHARED)}; checked here: {len(CHECKED)}")
     print(f"not exercised by this script: {sorted(SHARED - CHECKED)}")
-    print(f"vendored only, sengol no longer signs ({len(withdrawn)}): {withdrawn}")
+    print(f"vendored only, sengol does not sign them ({len(withdrawn)}): {withdrawn}")
     print(f"sengol only, missing from the verifier: {unknown}")
     print(f"version tuples that differ: {skew}")
-    bad = bool(FAILURES or unknown or skew)
+    # The comparison above is only meaningful if some record carried a
+    # by-design unsigned field, top-level and nested.
+    unexercised = sorted({"model", "eval_result.scores.reason"} - COVERAGE_SEEN)
+    print(f"field_coverage names seen: {sorted(COVERAGE_SEEN)}; not exercised: {unexercised}")
+    bad = bool(FAILURES or withdrawn or unknown or skew or unexercised)
     print("RESULT:", "FAIL" if bad else "OK")
     return 1 if bad else 0
 

@@ -26,13 +26,26 @@ __all__ = [
     "Record",
     "canonical_payload",
     "UnknownPayloadVersion",
-    "unsigned_fields_below_floor",
+    "UnknownRecordType",
+    "unsigned_field_paths",
     "RECORD_TYPE_TO_FAMILY",
 ]
 
 
 class UnknownPayloadVersion(Exception):
     """No canonical function is registered for a record's (type, version)."""
+
+
+class UnknownRecordType(Exception):
+    """A record's ``record_type`` names no family this verifier registers.
+
+    Such a record has no canonical payload here: reading it as a generic
+    ``AuditRecord`` would verify bytes sengol never signed under that name.
+    """
+
+    def __init__(self, record_type: Any) -> None:
+        super().__init__(f"record_type {record_type!r} is not registered in this verifier")
+        self.record_type = record_type
 
 
 # Field names that are datetimes in every canonical function that reads them.
@@ -71,10 +84,13 @@ class Record:
 
     ``family`` names which canonical-function family signs this record's
     bytes (e.g. "AuditRecord", "AgentCallRecord") — resolved once, at
-    construction, from the record's ``record_type`` string field.
+    construction, from the record's ``record_type`` string field. It is
+    ``None`` for a record whose ``record_type`` is not registered; such a
+    record has no canonical payload and ``canonical_payload`` raises
+    :exc:`UnknownRecordType`.
     """
 
-    def __init__(self, raw: dict, family: str) -> None:
+    def __init__(self, raw: dict, family: str | None) -> None:
         self._raw = raw
         self.family = family
 
@@ -121,26 +137,23 @@ class Record:
         return self._raw.get("prev_hash", "")
 
     def canonical_payload(self) -> str:
+        if self.family is None:
+            raise UnknownRecordType(self._raw.get("record_type"))
         return canonical_payload(self.family, self.payload_version, self)
-
-    def unsigned_fields(self) -> dict:
-        return unsigned_fields_below_floor(self)
 
 
 # ---------------------------------------------------------------------------
 # record_type string -> canonical-function family name (sengol AUDIT_RECORD_TYPES).
-# A record with no record_type field (or an unknown one) is base AuditRecord.
+# A record with no record_type field is base AuditRecord; one with a
+# record_type missing from this map is refused by ``family_for``.
 # ---------------------------------------------------------------------------
 
 RECORD_TYPE_TO_FAMILY: dict[str, str] = {
     "sengol.agent.call": "AgentCallRecord",
     "sengol.agent.tier_change": "AgentTierChangeRecord",
     "sengol.audit.certification_anchor": "CertificationAnchorRecord",
-    "sengol.audit.dual_control_change": "ErasureDualControlChangeRecord",
-    "sengol.audit.tenant_status_change": "TenantStatusChangeRecord",
     "sengol.audit.tombstone": "TombstoneRecord",
     "sengol.audit.trace_reveal": "TraceRevealRecord",
-    "sengol.authority.model": "AuthorityModelRecord",
     "sengol.authorization.decision": "AuthorizationDecisionRecord",
     "sengol.behaviour.deviation": "BehaviourDeviationRecord",
     "sengol.behaviour.lease": "AcceptedSetLease",
@@ -148,23 +161,10 @@ RECORD_TYPE_TO_FAMILY: dict[str, str] = {
     "sengol.certification.revocation": "CertificationRevocationRecord",
     "sengol.certification.supersession": "CertificationSupersessionRecord",
     "sengol.gateway.usage": "GatewayUsageRecord",
-    "sengol.governance.change": "GovernanceChangeRecord",
-    "sengol.identity.binding": "AgentIdentityBindingRecord",
     "sengol.judge.model_card": "JudgeModelCard",
     "sengol.judge.promotion_decision": "PromotionDecisionRecord",
-    "sengol.legalhold.event": "LegalHoldRecord",
     "sengol.lifecycle.deployment_authorization": "DeploymentAuthorizationRecord",
     "sengol.quarantine.event": "AgentQuarantineRecord",
-    "sengol.registration.agent": "AgentRegistrationRecord",
-    "sengol.registration.secret_expiry_scheduled": "AgentSecretExpiryScheduledRecord",
-    "sengol.registration.secret_issued": "AgentSecretIssuedRecord",
-    "sengol.registration.secret_revoked": "AgentSecretRevokedRecord",
-    "sengol.regulation.update": "RegulationUpdateEvent",
-    "sengol.retention.auto_execute": "RetentionAutoExecuteChangeRecord",
-    "sengol.retention.policy_change": "RetentionPolicyChangeRecord",
-    "sengol.retention.retirement": "RetentionRetirementRecord",
-    "sengol.scope.label_change": "AgentLabelChangeRecord",
-    "sengol.shadow.disposition": "ShadowAgentDispositionRecord",
     "sengol.sod.decision": "SoDDecisionRecord",
 }
 
@@ -172,16 +172,25 @@ RECORD_TYPE_TO_FAMILY: dict[str, str] = {
 def family_for(raw: dict) -> str:
     """The canonical-function family for a raw record dict.
 
+    A record with no ``record_type`` (or a null one) is the base
+    ``AuditRecord``. Any other value must be a key of
+    ``RECORD_TYPE_TO_FAMILY``; otherwise this raises :exc:`UnknownRecordType`
+    rather than falling back to ``AuditRecord``.
+
     ``EvaluationRunRecord``, ``CertificationRecord``, ``GoldScoreRecord``,
-    ``SaturationEvent`` and the four regression records (``ProductionFailureRecord``,
-    ``RegressionCaseRecord``, ``RegressionCaseRetirementRecord``,
-    ``ProductionFailureWaiverRecord``) carry no ``record_type`` field at all —
-    each lives outside the audit chain, in its own table — so none belongs in
-    ``RECORD_TYPE_TO_FAMILY``. A caller reconstructing one of these passes its
-    family to ``Record(raw, family)`` directly, as
-    ``scripts/crosscheck_canonical.py`` does.
+    ``SaturationEvent`` and the two signed regression records
+    (``ProductionFailureRecord``, ``RegressionCaseRecord``) carry no
+    ``record_type`` field at all — each lives outside the audit chain, in its
+    own table — so none belongs in ``RECORD_TYPE_TO_FAMILY``. A caller
+    reconstructing one of these passes its family to ``Record(raw, family)``
+    directly, as ``scripts/crosscheck_canonical.py`` does.
     """
-    return RECORD_TYPE_TO_FAMILY.get(raw.get("record_type"), "AuditRecord")
+    record_type = raw.get("record_type")
+    if record_type is None:
+        return "AuditRecord"
+    if isinstance(record_type, str) and record_type in RECORD_TYPE_TO_FAMILY:
+        return RECORD_TYPE_TO_FAMILY[record_type]
+    raise UnknownRecordType(record_type)
 
 
 # ---------------------------------------------------------------------------
@@ -198,16 +207,9 @@ def family_for(raw: dict) -> str:
 _VERSIONS: dict[str, tuple[int, ...]] = {
     "AcceptedSetLease": (1,),
     "AgentCallRecord": (1, 3, 4),
-    "AgentIdentityBindingRecord": (1, 2),
-    "AgentLabelChangeRecord": (1,),
     "AgentQuarantineRecord": (1,),
-    "AgentRegistrationRecord": (1, 2),
-    "AgentSecretExpiryScheduledRecord": (1,),
-    "AgentSecretIssuedRecord": (1,),
-    "AgentSecretRevokedRecord": (1, 2),
     "AgentTierChangeRecord": (1,),
     "AuditRecord": (1, 2, 3),
-    "AuthorityModelRecord": (1,),
     "AuthorizationDecisionRecord": (1, 2),
     "BehaviourDeviationRecord": (1,),
     "BehaviourManifestRecord": (1,),
@@ -218,27 +220,16 @@ _VERSIONS: dict[str, tuple[int, ...]] = {
     "CertificationRevocationRecord": (1,),
     "CertificationSupersessionRecord": (1,),
     "DeploymentAuthorizationRecord": (1,),
-    "ErasureDualControlChangeRecord": (1,),
     "EvaluationCaseRecord": (1,),
     "EvaluationRunRecord": (2, 3, 4, 5, 6),
     "GatewayUsageRecord": (1,),
     "GoldScoreRecord": (1, 2),
-    "GovernanceChangeRecord": (1,),
     "JudgeModelCard": (1, 2),
-    "LegalHoldRecord": (1,),
     "ProductionFailureRecord": (1,),
-    "ProductionFailureWaiverRecord": (1,),
     "PromotionDecisionRecord": (1, 2),
     "RegressionCaseRecord": (1,),
-    "RegressionCaseRetirementRecord": (1,),
-    "RegulationUpdateEvent": (1,),
-    "RetentionAutoExecuteChangeRecord": (1,),
-    "RetentionPolicyChangeRecord": (1,),
-    "RetentionRetirementRecord": (1,),
     "SaturationEvent": (1, 2),
-    "ShadowAgentDispositionRecord": (1,),
     "SoDDecisionRecord": (1, 2, 3),
-    "TenantStatusChangeRecord": (1, 2),
     "TombstoneRecord": (1, 2),
     "TraceRevealRecord": (1,),
 }
@@ -280,7 +271,6 @@ _UNORDERED_FIELDS: dict[str, frozenset[str]] = {
     "CertificationSupersessionRecord": frozenset({"supersedes"}),
     "EvaluationCaseRecord": frozenset({"scores", "skipped"}),
     "EvaluationRunRecord": frozenset({"evaluator_manifest"}),
-    "GovernanceChangeRecord": frozenset({"changes"}),
     "TombstoneRecord": frozenset({"purged_trace_ids"}),
 }
 
@@ -333,15 +323,35 @@ def canonical_payload(family: str, version: int, record: Any) -> str:
     return rfc8785.dumps({"record": fields, "type": family}).decode("utf-8")
 
 
-# ---------------------------------------------------------------------------
-# Step-6 field coverage (offline_verify.py Step 6). Under ADR-0019 there is
-# no per-version floor: a family's UNSIGNED_FIELDS are unsigned at every
-# version, and every other populated field is always inside the signature.
-# `unsigned_fields_below_floor` keeps its name/contract for callers, but a
-# well-formed record can never trip it, so it always reports nothing.
-# ---------------------------------------------------------------------------
+def unsigned_field_paths(record: Record) -> list[str]:
+    """The set fields of *record* that sit outside its signature, as sorted
+    dotted paths from the record root (list positions do not count).
 
+    A field is listed when its value is not ``None`` and either the family
+    leaves it out (the signature fields, the family's ``UNSIGNED_FIELDS``) or
+    ``_NESTED_UNSIGNED_FIELDS`` names its path (``eval_result.scores.reason``).
+    A field inside an unsigned parent is not listed again. This walks the
+    record exactly as ``_strip`` does, so every path returned is absent from
+    ``canonical_payload``. A record with no family has no signature rule and
+    returns ``[]``.
+    """
+    if record.family is None:
+        return []
+    found: set[str] = set()
 
-def unsigned_fields_below_floor(record: Any) -> dict:
-    """No-op under ADR-0019 — kept for API stability. Always ``{}``."""
-    return {}
+    def walk(value: Any, unsigned: frozenset[str], path: tuple[str, ...]) -> None:
+        if isinstance(value, dict):
+            for k, v in value.items():
+                if v is None:
+                    continue
+                sub = path + (k,)
+                if k in unsigned:
+                    found.add(".".join(sub))
+                else:
+                    walk(v, _NESTED_UNSIGNED_FIELDS.get(sub, frozenset()), sub)
+        elif isinstance(value, list):
+            for v in value:
+                walk(v, unsigned, path)
+
+    walk(record._raw, _unsigned_fields(record.family), ())
+    return sorted(found)

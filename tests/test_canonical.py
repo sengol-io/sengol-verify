@@ -14,6 +14,8 @@ import hmac
 import json
 from pathlib import Path
 
+import pytest
+
 from sengol_verify.canonical import Record, canonical_payload
 
 _FIXTURES = json.loads((Path(__file__).parent / "fixtures" / "canonical_fixtures.json").read_text())
@@ -105,8 +107,6 @@ def test_crosscheck_fixtures_reproduce_real_sengol_bytes_and_hmac():
         "CertificationRecord",
         "ProductionFailureRecord",
         "RegressionCaseRecord",
-        "RegressionCaseRetirementRecord",
-        "ProductionFailureWaiverRecord",
     }
     for f in _FIXTURES:
         rec = Record(f["raw"], f["family"])
@@ -145,13 +145,11 @@ def test_regression_case_binding_reference_is_unsigned_but_config_hash_is_not():
 
 
 def test_tamper_on_each_regression_family_breaks_the_hmac():
-    """One field per new family, mutated: proof each is actually inside the
-    signature, not decorative (spec success criterion 4)."""
+    """One field per signed regression family, mutated: proof each is
+    actually inside the signature, not decorative (spec success criterion 4)."""
     tampers = {
         "ProductionFailureRecord": ("failure_mode", "TAMPERED_MODE"),
         "RegressionCaseRecord": ("promoted_by", "someone-else"),
-        "RegressionCaseRetirementRecord": ("reason", "tampered reason"),
-        "ProductionFailureWaiverRecord": ("waived_by", "someone-else"),
     }
     for family, (field, new_value) in tampers.items():
         f = next(x for x in _FIXTURES if x["family"] == family)
@@ -206,10 +204,38 @@ def test_every_audit_subtype_maps_to_its_own_family():
     from sengol_verify.canonical import family_for
 
     assert family_for({"record_type": "sengol.audit.trace_reveal"}) == "TraceRevealRecord"
-    assert family_for({"record_type": "sengol.registration.agent"}) == "AgentRegistrationRecord"
-    assert family_for({"record_type": "sengol.governance.change"}) == "GovernanceChangeRecord"
+    assert family_for({"record_type": "sengol.agent.tier_change"}) == "AgentTierChangeRecord"
     assert family_for({"record_type": "sengol.sod.decision"}) == "SoDDecisionRecord"
     assert family_for({}) == "AuditRecord"
+    assert family_for({"record_type": None}) == "AuditRecord"
+
+
+@pytest.mark.parametrize(
+    "record_type",
+    [
+        "sengol.registration.agent",  # a family sengol no longer signs
+        "sengol.governance.change",
+        "sengol.made.up",
+        "",
+        7,
+        ["sengol.agent.call"],  # unhashable: must not raise TypeError
+    ],
+)
+def test_unregistered_record_type_is_refused_not_read_as_audit_record(record_type):
+    from sengol_verify.canonical import UnknownRecordType, family_for
+
+    with pytest.raises(UnknownRecordType) as exc:
+        family_for({"record_type": record_type})
+    assert exc.value.record_type == record_type
+    assert repr(record_type) in str(exc.value)
+
+
+def test_record_without_a_family_has_no_canonical_payload():
+    from sengol_verify.canonical import UnknownRecordType
+
+    rec = Record({"record_type": "sengol.made.up", "agent_id": "a"}, None)
+    with pytest.raises(UnknownRecordType, match="sengol.made.up"):
+        rec.canonical_payload()
 
 
 def test_hmac_check_covers_version_1_records():
@@ -346,3 +372,41 @@ def test_certification_anchor_record_id_is_unsigned():
     assert rec.canonical_payload() == f["canonical"]
     assert _hmac_hex(f["hmac_key"], rec.canonical_payload()) == f["raw"]["hmac_signature"]
     assert "anchor_record_id" not in json.loads(f["canonical"])["record"]
+
+
+_RETIRED_FAMILIES = (
+    "AgentIdentityBindingRecord",
+    "AgentLabelChangeRecord",
+    "AgentRegistrationRecord",
+    "AgentSecretExpiryScheduledRecord",
+    "AgentSecretIssuedRecord",
+    "AgentSecretRevokedRecord",
+    "AuthorityModelRecord",
+    "ErasureDualControlChangeRecord",
+    "GovernanceChangeRecord",
+    "LegalHoldRecord",
+    "ProductionFailureWaiverRecord",
+    "RegressionCaseRetirementRecord",
+    "RegulationUpdateEvent",
+    "RetentionAutoExecuteChangeRecord",
+    "RetentionPolicyChangeRecord",
+    "RetentionRetirementRecord",
+    "ShadowAgentDispositionRecord",
+    "TenantStatusChangeRecord",
+)
+
+
+@pytest.mark.parametrize("family", _RETIRED_FAMILIES)
+def test_families_sengol_no_longer_signs_are_not_registered(family):
+    """The verifier carries no canonical rule for a family sengol stopped
+    signing: it is in no table, and a record built under its name has no
+    payload version to canonicalize under."""
+    from sengol_verify import canonical
+    from sengol_verify.canonical import UnknownPayloadVersion
+
+    assert family not in canonical._VERSIONS
+    assert family not in canonical.RECORD_TYPE_TO_FAMILY.values()
+    assert family not in canonical._UNSIGNED_FIELDS
+    assert family not in canonical._UNORDERED_FIELDS
+    with pytest.raises(UnknownPayloadVersion):
+        Record({"payload_version": 1}, family).canonical_payload()

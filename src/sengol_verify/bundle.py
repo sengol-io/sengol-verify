@@ -15,7 +15,7 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from sengol_verify.canonical import Record, family_for
+from sengol_verify.canonical import Record, UnknownRecordType, family_for
 
 __all__ = [
     "Countersignature",
@@ -91,8 +91,18 @@ def load_bundle(path: Path) -> dict:
     return _read_json_bundle(path)
 
 
+def _record(raw: dict) -> Record:
+    try:
+        return Record(raw, family_for(raw))
+    except UnknownRecordType:
+        return Record(raw, None)
+
+
 def reconstruct_records(bundle: dict) -> list:
-    return [Record(raw, family_for(raw)) for raw in bundle.get("records", [])]
+    """One ``Record`` per bundle record. A record whose ``record_type`` is not
+    registered gets ``family=None``: it is kept, so verification reports it,
+    but it has no canonical payload."""
+    return [_record(raw) for raw in bundle.get("records", [])]
 
 
 def reconstruct_countersigs(bundle: dict) -> list:

@@ -120,53 +120,36 @@ def test_fixture_run_hash_is_what_the_step_binds():
     )
 
 
-def _signed(family: str, raw: dict) -> dict:
-    """A record of ``family`` signed with the fixture key."""
-    import hmac as _h
-
-    raw = {**raw, "hmac_signature": ""}
-    payload = Record(raw, family).canonical_payload()
-    key = _CHAIN["failure"]["hmac_key"]
-    raw["hmac_signature"] = _h.new(key.encode(), payload.encode(), hashlib.sha256).hexdigest()
-    return {"family": family, "record": raw}
-
-
-def _retirement(reason: str) -> dict:
-    case = _CHAIN["case"]["raw"]
-    return _signed(
-        "RegressionCaseRetirementRecord",
-        {
-            "tenant_id": case["tenant_id"],
-            "agent_id": case["agent_id"],
-            "key_id": case["key_id"],
-            "payload_version": 1,
-            "signing_backend": "local",
-            "case_id": case["case_id"],
-            "reason": reason,
-            "retired_by": "reviewer-2",
-            "retired_at": "2026-09-28T00:00:00Z",
-        },
-    )
-
-
-def test_every_retirement_is_signature_checked_not_just_the_last():
-    """Retirements carry no id of their own; two of them must not collapse
-    into one entry, or a tampered first one would go unchecked."""
+def test_signed_retirement_family_is_an_unknown_family():
+    """sengol no longer signs retirements (ADR-0024); an entry naming the
+    old signed family is refused by name, not read as a signed record."""
     bundle = _bundle(hmac=True)
-    tampered = _retirement("first")
-    tampered["record"]["reason"] = "changed after signing"
-    bundle["regression_evidence"]["records"] += [tampered, _retirement("second")]
+    bundle["regression_evidence"]["records"].append(
+        {
+            "family": "RegressionCaseRetirementRecord",
+            "record": {
+                "agent_id": _CHAIN["case"]["raw"]["agent_id"],
+                "case_id": _CHAIN["case"]["raw"]["case_id"],
+                "reason": "obsolete",
+            },
+        }
+    )
     step = _step(bundle)
     assert step.result == "FAIL"
-    assert "RegressionCaseRetirementRecord" in step.detail
-    assert "HMAC mismatch" in step.detail
+    assert "unknown family 'RegressionCaseRetirementRecord'" in step.detail
 
 
-def test_valid_retirement_passes():
+def test_signed_waiver_family_is_an_unknown_family():
     bundle = _bundle(hmac=True)
-    bundle["regression_evidence"]["records"].append(_retirement("obsolete"))
+    bundle["regression_evidence"]["records"].append(
+        {
+            "family": "ProductionFailureWaiverRecord",
+            "record": {"agent_id": _CHAIN["failure"]["raw"]["agent_id"]},
+        }
+    )
     step = _step(bundle)
-    assert step.result == "PASS", step.detail
+    assert step.result == "FAIL"
+    assert "unknown family 'ProductionFailureWaiverRecord'" in step.detail
 
 
 def test_duplicate_case_id_fails():

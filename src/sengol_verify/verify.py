@@ -21,7 +21,12 @@ from sengol_verify.bundle import (
     reconstruct_countersigs,
     reconstruct_records,
 )
-from sengol_verify.canonical import Record, UnknownPayloadVersion
+from sengol_verify.canonical import (
+    Record,
+    UnknownPayloadVersion,
+    UnknownRecordType,
+    unsigned_field_paths,
+)
 from sengol_verify.merkle import merkle_root
 
 ResultStatus = Literal["PASS", "FAIL", "UNVERIFIABLE"]
@@ -82,42 +87,45 @@ def verify_bundle(bundle: dict, *, portable: bool = False) -> BundleResult:
 
 
 def _check_field_coverage(records: list) -> StepResult:
-    """Step 6: no record carries a field its payload_version does not sign."""
-    failures = []
-    for record in records:
-        unsigned = record.unsigned_fields()
-        if unsigned:
-            failures.append(f"{record.record_id}: {sorted(unsigned)}")
+    """Step 6: name the set fields that sit outside each record's signature.
 
-    if failures:
-        return StepResult(
-            check="field_coverage",
-            scope=f"{len(records)} records",
-            result="FAIL",
-            detail=(
-                "Record carries a field its payload_version does not sign, so "
-                "the value is outside the signature and may have been altered "
-                f"at rest: {failures}"
-            ),
+    Every set field is signed except the signature fields, a family's
+    unsigned fields and the nested paths ``canonical`` leaves out (an
+    evaluator score's ``reason`` and ``reason_status``), so steps 1-5 already
+    cover everything else. This step reports which by-design unsigned values
+    the bundle's records carry, so an examiner knows which values no check
+    vouches for. It reports and never fails.
+    """
+    fields = sorted({path for record in records for path in unsigned_field_paths(record)})
+    detail = (
+        "Every set field is inside the signature except these, which are "
+        f"unsigned by design and not vouched for by any step: {fields}"
+    )
+    unregistered = sum(1 for record in records if record.family is None)
+    if unregistered:
+        detail += (
+            f". {unregistered} record(s) with a record_type not registered in "
+            "this verifier are not assessed"
         )
     return StepResult(
         check="field_coverage",
         scope=f"{len(records)} records",
         result="PASS",
-        detail="No record populates a field below the payload_version that signs it.",
+        detail=detail,
     )
 
 
 def _payload(record) -> str | None:
     """The record's canonical payload, or ``None`` when it has none.
 
-    A record with a value RFC 8785 cannot encode, or a payload version this
-    verifier does not know, cannot have been signed as it stands; each step
-    counts it as a failure rather than letting the exception end the run.
+    A record with a value RFC 8785 cannot encode, a payload version this
+    verifier does not know, or a ``record_type`` it does not register cannot
+    have been signed as it stands; each step counts it as a failure rather
+    than letting the exception end the run.
     """
     try:
         return record.canonical_payload()
-    except (rfc8785.CanonicalizationError, UnknownPayloadVersion):
+    except (rfc8785.CanonicalizationError, UnknownPayloadVersion, UnknownRecordType):
         return None
 
 
@@ -134,11 +142,14 @@ def _check_payload_hashes(records: list, countersigs: list) -> StepResult:
 
     failures = []
     uncovered = []
+    unregistered = {}
 
     for record in records:
         live_hash = _payload_hash(record)
         if live_hash is None:
             failures.append(record.record_id)
+            if record.family is None:
+                unregistered[record.record_id] = record.record_type
             continue
         stored = committed.get(record.record_id)
         if stored is None:
@@ -148,11 +159,17 @@ def _check_payload_hashes(records: list, countersigs: list) -> StepResult:
             failures.append(record.record_id)
 
     if failures:
+        detail = f"Payload hash mismatch: {failures}"
+        if unregistered:
+            detail += (
+                "; record_type not registered in this verifier, so these records "
+                f"have no canonical payload (record_id: record_type): {unregistered}"
+            )
         return StepResult(
             check="payload_hash_integrity",
             scope=f"{len(records)} records",
             result="FAIL",
-            detail=f"Payload hash mismatch: {failures}",
+            detail=detail,
         )
     if uncovered:
         return StepResult(
@@ -411,21 +428,18 @@ def _check_anchors(records: list, anchors: list) -> StepResult:
     )
 
 
-#: Each regression family's own id field (its records carry no ``record_id``).
-# Field each family is labelled by in messages. Retirements and waivers
-# carry no id of their own, so they are labelled by what they reference;
-# only failures, cases and runs are link targets and must be unique.
+# Field each signed family is labelled by in messages; only failures, cases
+# and runs are link targets and must be unique.
 _REGRESSION_ID_FIELD = {
     "ProductionFailureRecord": "failure_id",
     "RegressionCaseRecord": "case_id",
-    "RegressionCaseRetirementRecord": "case_id",
-    "ProductionFailureWaiverRecord": "failure_id",
     "EvaluationRunRecord": "run_id",
     "CertificationRecord": "cert_id",
 }
 # Retirements and waivers are unsigned operator judgements (sengol
 # ADR-0024): they carry no HMAC, so only their agent and links are checked.
-# The signed *Record names above remain for bundles from older servers.
+# The signed retirement and waiver families are not registered, so an entry
+# naming one is an unknown family.
 _UNSIGNED_REGRESSION_FAMILIES = {
     "RegressionCaseRetirement": "case_id",
     "ProductionFailureWaiver": "failure_id",
@@ -442,8 +456,7 @@ _REGRESSION_SCOPE = (
 
 
 def _check_regression_lineage(section: dict, public_keys: dict) -> StepResult:
-    """Regression evidence: format, agent, family, signature, field coverage
-    and id links."""
+    """Regression evidence: format, agent, family, signature and id links."""
     if not isinstance(section, dict):
         return StepResult(
             "regression_lineage", _REGRESSION_SCOPE, "FAIL", "section is not an object"
@@ -508,8 +521,6 @@ def _check_regression_lineage(section: dict, public_keys: dict) -> StepResult:
             r.hmac_signature,
         ):
             problems.append(f"{rid}: HMAC mismatch")
-        if r.unsigned_fields():
-            problems.append(f"{rid}: unsigned fields {sorted(r.unsigned_fields())}")
 
     def dangling(kind, ref_id, owner, target_family):
         if str(ref_id) not in recs[target_family]:
@@ -517,10 +528,6 @@ def _check_regression_lineage(section: dict, public_keys: dict) -> StepResult:
 
     for c in recs["RegressionCaseRecord"].values():
         dangling("case", c.failure_id, c.case_id, "ProductionFailureRecord")
-    for x in by_family["RegressionCaseRetirementRecord"]:
-        dangling("retirement", x.case_id, "", "RegressionCaseRecord")
-    for w in by_family["ProductionFailureWaiverRecord"]:
-        dangling("waiver", w.failure_id, "", "ProductionFailureRecord")
     for x in by_family["RegressionCaseRetirement"]:
         dangling("retirement", x.get("case_id"), "", "RegressionCaseRecord")
     for w in by_family["ProductionFailureWaiver"]:
@@ -562,8 +569,7 @@ def _check_regression_lineage(section: dict, public_keys: dict) -> StepResult:
             "regression_lineage",
             scope,
             "UNVERIFIABLE",
-            f"Links and field coverage verified; HMAC key material absent "
-            f"for {unverifiable} records",
+            f"Links verified; HMAC key material absent for {unverifiable} records",
         )
     return StepResult(
         "regression_lineage", scope, "PASS", f"{len(entries)} records verified, all links resolve"

@@ -27,7 +27,7 @@ __all__ = [
     "canonical_payload",
     "UnknownPayloadVersion",
     "UnknownRecordType",
-    "unsigned_fields_below_floor",
+    "unsigned_field_paths",
     "RECORD_TYPE_TO_FAMILY",
 ]
 
@@ -140,9 +140,6 @@ class Record:
         if self.family is None:
             raise UnknownRecordType(self._raw.get("record_type"))
         return canonical_payload(self.family, self.payload_version, self)
-
-    def unsigned_fields(self) -> dict:
-        return unsigned_fields_below_floor(self)
 
 
 # ---------------------------------------------------------------------------
@@ -326,15 +323,35 @@ def canonical_payload(family: str, version: int, record: Any) -> str:
     return rfc8785.dumps({"record": fields, "type": family}).decode("utf-8")
 
 
-# ---------------------------------------------------------------------------
-# Step-6 field coverage (offline_verify.py Step 6). Under ADR-0019 there is
-# no per-version floor: a family's UNSIGNED_FIELDS are unsigned at every
-# version, and every other populated field is always inside the signature.
-# `unsigned_fields_below_floor` keeps its name/contract for callers, but a
-# well-formed record can never trip it, so it always reports nothing.
-# ---------------------------------------------------------------------------
+def unsigned_field_paths(record: Record) -> list[str]:
+    """The set fields of *record* that sit outside its signature, as sorted
+    dotted paths from the record root (list positions do not count).
 
+    A field is listed when its value is not ``None`` and either the family
+    leaves it out (the signature fields, the family's ``UNSIGNED_FIELDS``) or
+    ``_NESTED_UNSIGNED_FIELDS`` names its path (``eval_result.scores.reason``).
+    A field inside an unsigned parent is not listed again. This walks the
+    record exactly as ``_strip`` does, so every path returned is absent from
+    ``canonical_payload``. A record with no family has no signature rule and
+    returns ``[]``.
+    """
+    if record.family is None:
+        return []
+    found: set[str] = set()
 
-def unsigned_fields_below_floor(record: Any) -> dict:
-    """No-op under ADR-0019 — kept for API stability. Always ``{}``."""
-    return {}
+    def walk(value: Any, unsigned: frozenset[str], path: tuple[str, ...]) -> None:
+        if isinstance(value, dict):
+            for k, v in value.items():
+                if v is None:
+                    continue
+                sub = path + (k,)
+                if k in unsigned:
+                    found.add(".".join(sub))
+                else:
+                    walk(v, _NESTED_UNSIGNED_FIELDS.get(sub, frozenset()), sub)
+        elif isinstance(value, list):
+            for v in value:
+                walk(v, unsigned, path)
+
+    walk(record._raw, _unsigned_fields(record.family), ())
+    return sorted(found)

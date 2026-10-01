@@ -20,11 +20,16 @@ in the file:
    checked against its record's payload hash using the embedded public key.
 5. **Merkle anchor coverage** — each anchor receipt's Merkle root is
    recomputed from its leaf hashes and compared.
-6. **Field coverage** — reported as its own result row, but it cannot
-   FAIL. Every populated field is signed at every `payload_version` except
-   the family's unsigned fields (listed under "How"), so no version leaves a
-   field outside the signature, and the check always reports PASS. It does
-   not detect an edit to an unsigned field.
+6. **Field coverage** — a report, not a check: it never FAILs. Every set
+   field is signed except the signature fields, the family's unsigned fields
+   and a few nested ones (an evaluator score's `reason` and `reason_status`,
+   a regression case binding's `config` and `reference`; all listed under
+   "How"), so steps 1-5 already cover everything else. This step names
+   which of those by-design unsigned fields the bundle's records actually
+   carry (for example `hmac_signature`, `eval_result.scores.reason`), so you
+   know which values no check vouches for. Its row always reads PASS; it does
+   not detect an edit to an unsigned field, and a record with an unregistered
+   `record_type` is not assessed (the detail says how many).
 
 If the bundle has an optional top-level `regression_evidence` section
 (`{"format": "sengol-regression-evidence/v1", "agent_id": ..., "records":
@@ -60,7 +65,8 @@ stored. That is what makes offline verification meaningful months after the
 evidence was written.
 
 Some fields of an exported record are outside the signature by design
-(sengol's `UNSIGNED_FIELDS`), so no check here covers them:
+(sengol's `UNSIGNED_FIELDS`), so no check here covers them; the
+`field_coverage` row lists the ones a bundle's records carry:
 
 - an evaluator score's `reason` text and `reason_status` (sengol ADR-0078).
   The signed `reason_digest` is a keyed HMAC under an install key this tool

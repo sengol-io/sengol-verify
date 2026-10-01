@@ -195,8 +195,8 @@ def test_unknown_payload_version_rejected():
 
 def test_canonical_payload_matches_record_method():
     raw = {"agent_id": "a", "tenant_id": "t", "payload_version": 1}
-    rec = Record(raw, "AuthorityModelRecord")
-    assert canonical_payload("AuthorityModelRecord", 1, rec) == rec.canonical_payload()
+    rec = Record(raw, "AgentTierChangeRecord")
+    assert canonical_payload("AgentTierChangeRecord", 1, rec) == rec.canonical_payload()
 
 
 def test_every_audit_subtype_maps_to_its_own_family():

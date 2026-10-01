@@ -1,23 +1,30 @@
-"""One-off cross-check: real sengol canonical bytes vs the vendored copy.
+"""Cross-check: real sengol canonical bytes vs the vendored copy.
 
 Run from the sengol checkout with sengol-verify's src on the path:
 
-    cd /home/user/sengol && PYTHONPATH=/home/user/sengol-verify/src \
-        uv run python /home/user/sengol-verify/scripts/crosscheck_canonical.py
+    cd /home/user/sengol && PYTHONPATH=/home/user/sengol:/path/to/sengol-verify/src \
+        uv run python /path/to/sengol-verify/scripts/crosscheck_canonical.py
 
-Not part of the test suite (it depends on sengol being importable) — a
-one-time confidence check that the vendored copy in canonical.py produces
-byte-identical output to the real payload_registry.py for record families
-the committed fixtures don't exercise.
+Not part of the test suite (it depends on sengol being importable). It
+compares only the families both sides still register: sengol's
+``payload_registry._VERSIONS`` and the vendored ``_VERSIONS`` are intersected,
+their version tuples are compared, and every record built below is signed by
+sengol and re-canonicalized by the vendored copy. Families sengol no longer
+signs are listed, not checked. Exits 1 on any mismatch or a record whose
+family is not in the intersection.
 """
 
+import sys
 from datetime import UTC, datetime
+from uuid import UUID
 
+from sengol.core.payload_registry import _VERSIONS as SENGOL_VERSIONS
 from sengol.core.types import (
+    AcceptedSetLease,
     AgentCallRecord,
     AuditRecord,
-    AuthorityModelRecord,
     AuthorizationDecisionRecord,
+    CallStartedRecord,
     CaseBinding,
     CaseResult,
     CertificationRecord,
@@ -28,15 +35,17 @@ from sengol.core.types import (
     GoldScoreRecord,
     JudgeModelCard,
     ProductionFailureRecord,
-    ProductionFailureWaiverRecord,
     RegressionCaseRecord,
-    RegressionCaseRetirementRecord,
     SaturationEvent,
-    TenantStatusChangeRecord,
     TombstoneRecord,
 )
 
+from sengol_verify.canonical import _VERSIONS as VERIFY_VERSIONS
 from sengol_verify.canonical import Record, family_for
+
+SHARED = frozenset(SENGOL_VERSIONS) & frozenset(VERIFY_VERSIONS)
+CHECKED: set[str] = set()
+FAILURES: list[str] = []
 
 TENANT = "acme-bank"
 AGENT = "loan-underwriter-bot"
@@ -55,16 +64,26 @@ def _eval_result() -> EvalResult:
 def _check(real, family: str | None = None) -> None:
     """*family* is required for a record with no ``record_type`` field
     (EvaluationRunRecord, CertificationRecord, GoldScoreRecord,
-    SaturationEvent) — ``family_for`` only resolves that field."""
+    SaturationEvent, the regression records) — ``family_for`` only resolves
+    that field."""
     raw = real.model_dump(mode="json")
-    mine = Record(raw, family or family_for(raw))
+    name = family or family_for(raw)
+    label = f"{name} v{real.payload_version}"
+    if name not in SHARED:
+        FAILURES.append(label)
+        print(f"NOT SHARED: {label} is not registered on both sides")
+        return
+    CHECKED.add(name)
+    mine = Record(raw, name)
     real_bytes = real._canonical_payload()
     mine_bytes = mine.canonical_payload()
-    status = "OK" if real_bytes == mine_bytes else "MISMATCH"
-    print(f"{status}: {type(real).__name__} v{real.payload_version}")
-    if real_bytes != mine_bytes:
-        print("  real:", real_bytes)
-        print("  mine:", mine_bytes)
+    if real_bytes == mine_bytes:
+        print(f"OK: {label}")
+        return
+    FAILURES.append(label)
+    print(f"MISMATCH: {label}")
+    print("  real:", real_bytes)
+    print("  mine:", mine_bytes)
 
 
 def main() -> None:
@@ -109,38 +128,36 @@ def main() -> None:
         ).sign("hmac-key")
     )
 
-    _check(
-        AuthorityModelRecord(
-            agent_id=AGENT,
-            agent_version="1.0.0",
-            tenant_id=TENANT,
-            eval_result=_eval_result(),
-            policies=["OSFI_E23"],
-            authority_version_id="av-1",
-            model_digest="sha256:" + "c" * 64,
-            new_status="ACTIVE",
-            prior_status="PENDING",
-            reason="activation",
-            transition_actor="op-1",
-            sequence_number=1,
-            prev_hash="",
-            key_id="k1",
-        ).sign("hmac-key")
-    )
+    lease = AcceptedSetLease(
+        agent_id=AGENT,
+        agent_version="1.0.0",
+        tenant_id=TENANT,
+        eval_result=_eval_result(),
+        policies=[],
+        accepted_cert_ids=[
+            UUID("01a0e0ae-9261-7e42-8555-802b216f7a26"),
+            UUID("01a0e0ae-9261-7e42-8555-802b216f7a25"),
+        ],
+        artifact_digest="sha256:" + "a" * 64,
+        artifact_mutable=False,
+        sequence_number=1,
+        prev_hash="",
+        key_id="k1",
+    ).sign("hmac-key")
+    _check(lease)
 
     _check(
-        TenantStatusChangeRecord(
+        CallStartedRecord(
             agent_id=AGENT,
             agent_version="1.0.0",
             tenant_id=TENANT,
             eval_result=_eval_result(),
-            policies=["OSFI_E23"],
-            changed_by="op-1",
-            from_status="active",
-            to_status="suspended",
-            decided_at=datetime.now(UTC),
-            seal_posture="sealed",
-            sequence_number=1,
+            policies=[],
+            call_id=UUID("01a0e0ae-9261-7e42-8555-802b216f7a27"),
+            lease_id=lease.record_id,
+            pre_call_digest="sha256:" + "b" * 64,
+            received_at=lease.timestamp,
+            sequence_number=2,
             prev_hash="",
             key_id="k1",
         ).sign("hmac-key")
@@ -351,26 +368,22 @@ def main() -> None:
     ).sign("hmac-key")
     _check(case, family="RegressionCaseRecord")
 
-    retirement = RegressionCaseRetirementRecord(
-        agent_id=AGENT,
-        tenant_id=TENANT,
-        case_id=str(case.case_id),
-        reason="agent redesigned; case no longer applicable",
-        retired_by="reviewer-2",
-        key_id="k1",
-    ).sign("hmac-key")
-    _check(retirement, family="RegressionCaseRetirementRecord")
 
-    waiver = ProductionFailureWaiverRecord(
-        agent_id=AGENT,
-        tenant_id=TENANT,
-        failure_id=str(failure.failure_id),
-        reason="cannot be replayed offline (requires live market data)",
-        waived_by="reviewer-3",
-        key_id="k1",
-    ).sign("hmac-key")
-    _check(waiver, family="ProductionFailureWaiverRecord")
+def report() -> int:
+    """Print the family coverage and return the process exit code."""
+    withdrawn = sorted(set(VERIFY_VERSIONS) - set(SENGOL_VERSIONS))
+    unknown = sorted(set(SENGOL_VERSIONS) - set(VERIFY_VERSIONS))
+    skew = sorted(f for f in SHARED if SENGOL_VERSIONS[f] != VERIFY_VERSIONS[f])
+    print(f"\nshared families: {len(SHARED)}; checked here: {len(CHECKED)}")
+    print(f"not exercised by this script: {sorted(SHARED - CHECKED)}")
+    print(f"vendored only, sengol no longer signs ({len(withdrawn)}): {withdrawn}")
+    print(f"sengol only, missing from the verifier: {unknown}")
+    print(f"version tuples that differ: {skew}")
+    bad = bool(FAILURES or unknown or skew)
+    print("RESULT:", "FAIL" if bad else "OK")
+    return 1 if bad else 0
 
 
 if __name__ == "__main__":
     main()
+    sys.exit(report())

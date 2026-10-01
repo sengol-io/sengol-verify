@@ -6,12 +6,12 @@ Run from the sengol checkout with sengol-verify's src on the path:
         uv run python /path/to/sengol-verify/scripts/crosscheck_canonical.py
 
 Not part of the test suite (it depends on sengol being importable). It
-compares only the families both sides still register: sengol's
-``payload_registry._VERSIONS`` and the vendored ``_VERSIONS`` are intersected,
-their version tuples are compared, and every record built below is signed by
-sengol and re-canonicalized by the vendored copy. Families sengol no longer
-signs are listed, not checked. Exits 1 on any mismatch or a record whose
-family is not in the intersection.
+compares sengol's ``payload_registry._VERSIONS`` with the vendored
+``_VERSIONS``: the two must name the same families with the same version
+tuples, and every record built below is signed by sengol and
+re-canonicalized by the vendored copy. Exits 1 on any mismatch, a record whose
+family is not in both registries, a family only one side registers (a family
+sengol stopped signing must be deleted from the vendored copy).
 """
 
 import sys
@@ -376,10 +376,10 @@ def report() -> int:
     skew = sorted(f for f in SHARED if SENGOL_VERSIONS[f] != VERIFY_VERSIONS[f])
     print(f"\nshared families: {len(SHARED)}; checked here: {len(CHECKED)}")
     print(f"not exercised by this script: {sorted(SHARED - CHECKED)}")
-    print(f"vendored only, sengol no longer signs ({len(withdrawn)}): {withdrawn}")
+    print(f"vendored only, sengol does not sign them ({len(withdrawn)}): {withdrawn}")
     print(f"sengol only, missing from the verifier: {unknown}")
     print(f"version tuples that differ: {skew}")
-    bad = bool(FAILURES or unknown or skew)
+    bad = bool(FAILURES or withdrawn or unknown or skew)
     print("RESULT:", "FAIL" if bad else "OK")
     return 1 if bad else 0
 

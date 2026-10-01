@@ -422,42 +422,6 @@
     "hmac_key": "not-a-real-secret-do-not-reuse"
   },
   {
-    "family": "RegressionCaseRetirementRecord",
-    "version": 1,
-    "raw": {
-      "tenant_id": "acme-bank",
-      "agent_id": "loan-underwriter-bot",
-      "key_id": "k1",
-      "payload_version": 1,
-      "hmac_signature": "8914bd6efad33e1ed3ba91e2e3b4495ac9b7d907c216804b16127a80485ca539",
-      "signing_backend": "local",
-      "case_id": "01a0e0bc-9785-75ec-971a-9e66c831c060",
-      "reason": "agent redesigned; case no longer applicable",
-      "retired_by": "reviewer-2",
-      "retired_at": "2026-09-27T02:40:51.075792Z"
-    },
-    "canonical": "{\"record\":{\"agent_id\":\"loan-underwriter-bot\",\"case_id\":\"01a0e0bc-9785-75ec-971a-9e66c831c060\",\"key_id\":\"k1\",\"payload_version\":1,\"reason\":\"agent redesigned; case no longer applicable\",\"retired_at\":\"2026-09-27T02:40:51.075792Z\",\"retired_by\":\"reviewer-2\",\"tenant_id\":\"acme-bank\"},\"type\":\"RegressionCaseRetirementRecord\"}",
-    "hmac_key": "not-a-real-secret-do-not-reuse"
-  },
-  {
-    "family": "ProductionFailureWaiverRecord",
-    "version": 1,
-    "raw": {
-      "tenant_id": "acme-bank",
-      "agent_id": "loan-underwriter-bot",
-      "key_id": "k1",
-      "payload_version": 1,
-      "hmac_signature": "846758a7ac7f5e06e9a77fab707a0b2aed77d8186d01d095c43c2c8a432a0c3a",
-      "signing_backend": "local",
-      "failure_id": "01a0e0bc-9784-78b5-aaa9-e7bd1d21d92d",
-      "reason": "cannot be replayed offline (requires live market data)",
-      "waived_by": "reviewer-3",
-      "waived_at": "2026-09-27T02:40:51.075837Z"
-    },
-    "canonical": "{\"record\":{\"agent_id\":\"loan-underwriter-bot\",\"failure_id\":\"01a0e0bc-9784-78b5-aaa9-e7bd1d21d92d\",\"key_id\":\"k1\",\"payload_version\":1,\"reason\":\"cannot be replayed offline (requires live market data)\",\"tenant_id\":\"acme-bank\",\"waived_at\":\"2026-09-27T02:40:51.075837Z\",\"waived_by\":\"reviewer-3\"},\"type\":\"ProductionFailureWaiverRecord\"}",
-    "hmac_key": "not-a-real-secret-do-not-reuse"
-  },
-  {
     "family": "AuditRecord",
     "version": 3,
     "raw": {

@@ -149,3 +149,57 @@ def test_tampered_reason_digest_fails(tmp_path):
     assert result.verdict == "FAIL"
     step = next(s for s in result.step_results if s.check == "payload_hash_integrity")
     assert step.result == "FAIL"
+
+
+@pytest.mark.parametrize(
+    "record_type", ["sengol.registration.agent", "sengol.made.up"], ids=["retired", "made-up"]
+)
+def test_unregistered_record_type_fails_naming_the_type(tmp_path, record_type, capsys):
+    """A record whose `record_type` this verifier does not register has no
+    canonical payload: the verdict is FAIL and the step names the record and
+    its type. It is never verified as a generic AuditRecord, and no exception
+    escapes (the CLI exits 2 and prints the same detail as JSON)."""
+    bundle = json.loads((_FIXTURES / "bundle_full_pass.json").read_text())
+    bundle["records"][1]["record_type"] = record_type
+    victim = bundle["records"][1]["record_id"]
+    path = tmp_path / "unregistered.json"
+    path.write_text(json.dumps(bundle))
+
+    result = verify_bundle_file(path)
+    assert result.verdict == "FAIL"
+    steps = {s.check: s for s in result.step_results}
+    detail = steps["payload_hash_integrity"].detail
+    assert steps["payload_hash_integrity"].result == "FAIL"
+    assert victim in detail and repr(record_type) in detail
+    assert "not registered" in detail
+    assert steps["hmac_verify"].result == "FAIL"
+    assert steps["ed25519_countersig"].result == "FAIL"
+    assert [s.result for s in result.step_results].count("FAIL") >= 3
+    assert len(result.step_results) == 6
+
+    from sengol_verify.cli import main
+
+    assert main([str(path), "--json"]) == 2
+    out = json.loads(capsys.readouterr().out)
+    assert out["verdict"] == "FAIL"
+    assert repr(record_type) in next(
+        s["detail"] for s in out["steps"] if s["check"] == "payload_hash_integrity"
+    )
+
+
+def test_record_type_naming_an_unhashable_value_fails_instead_of_raising(tmp_path):
+    bundle = json.loads((_FIXTURES / "bundle_full_pass.json").read_text())
+    bundle["records"][0]["record_type"] = ["sengol.agent.call"]
+    path = tmp_path / "unhashable.json"
+    path.write_text(json.dumps(bundle))
+
+    assert verify_bundle_file(path).verdict == "FAIL"
+
+
+def test_a_registered_record_type_still_resolves_to_its_family():
+    from sengol_verify.bundle import reconstruct_records
+
+    records = reconstruct_records(
+        {"records": [{"record_type": "sengol.agent.call"}, {}, {"record_type": None}]}
+    )
+    assert [r.family for r in records] == ["AgentCallRecord", "AuditRecord", "AuditRecord"]

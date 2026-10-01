@@ -146,8 +146,8 @@ def main() -> None:
     (out_dir / "bundle_full_pass.json").write_text(json.dumps(with_hmac, indent=2))
 
     tampered = json.loads(json.dumps(bundle, default=str))
-    tampered["records"][1]["reason"] = "tampered"  # unknown field is harmless if absent
-    tampered["records"][1]["eval_result"]["scores"][0]["reason"] = "TAMPERED"
+    # `passed` is signed; the score's `reason` text is not (sengol ADR-0078).
+    tampered["records"][1]["eval_result"]["scores"][0]["passed"] = False
     (out_dir / "bundle_tampered.json").write_text(json.dumps(tampered, indent=2))
 
     chain_break = json.loads(json.dumps(bundle, default=str))

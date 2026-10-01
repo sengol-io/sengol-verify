@@ -99,6 +99,8 @@ def test_crosscheck_fixtures_reproduce_real_sengol_bytes_and_hmac():
     assert {f["family"] for f in _FIXTURES} >= {
         "AuditRecord",
         "TombstoneRecord",
+        "AcceptedSetLease",
+        "CallStartedRecord",
         "EvaluationRunRecord",
         "CertificationRecord",
         "ProductionFailureRecord",
@@ -221,3 +223,126 @@ def test_hmac_check_covers_version_1_records():
     assert _check_hmac([genuine], material).result == "PASS"
     forged = Record({**f["raw"], "hmac_signature": "0" * 64}, "AuditRecord")
     assert _check_hmac([forged], material).result == "FAIL"
+
+
+def _fixture(family: str, case: str | None = None) -> dict:
+    return next(x for x in _FIXTURES if x["family"] == family and x.get("case") == case)
+
+
+def test_score_reason_and_reason_status_are_not_signed_but_reason_digest_is():
+    """sengol signs a keyed `reason_digest` and leaves the text and its read
+    status out of the bytes (ADR-0078), so an exported record verifies with
+    the text served, with it erased, or with a status set."""
+    served = _fixture("AuditRecord", "reason_erased")
+    score = served["raw"]["eval_result"]["scores"][0]
+    assert score["reason"] == "" and score["reason_status"] == "ERASED"
+    assert score["reason_digest"].startswith("hmac-sha256:")
+
+    rec = Record(served["raw"], "AuditRecord")
+    assert rec.canonical_payload() == served["canonical"]
+    assert _hmac_hex(served["hmac_key"], rec.canonical_payload()) == served["raw"]["hmac_signature"]
+
+    signed_score = json.loads(served["canonical"])["record"]["eval_result"]["scores"][0]
+    assert "reason" not in signed_score and "reason_status" not in signed_score
+    assert signed_score["reason_digest"] == score["reason_digest"]
+
+    # The text is a free field: any value leaves the bytes unchanged.
+    for text in ("", "other text", "x" * 50):
+        raw = json.loads(json.dumps(served["raw"]))
+        raw["eval_result"]["scores"][0]["reason"] = text
+        assert Record(raw, "AuditRecord").canonical_payload() == served["canonical"]
+
+    # The digest is signed: swapping it breaks the bytes.
+    raw = json.loads(json.dumps(served["raw"]))
+    raw["eval_result"]["scores"][0]["reason_digest"] = "hmac-sha256:" + "0" * 64
+    assert Record(raw, "AuditRecord").canonical_payload() != served["canonical"]
+
+
+def test_score_exclusion_is_scoped_to_eval_result_scores():
+    """`reason` stays signed everywhere else, including a `scores` list that
+    is not the evaluator's (an evaluation case's per-evaluator verdicts)."""
+    raw = {
+        "run_id": "r-1",
+        "case_index": 0,
+        "case_key": "row:0",
+        "tenant_id": "t-1",
+        "payload_version": 1,
+        "scores": [{"evaluator": "E", "evaluator_version": "1", "passed": True, "reason": "x"}],
+    }
+    signed = json.loads(Record(raw, "EvaluationCaseRecord").canonical_payload())
+    assert signed["record"]["scores"][0]["reason"] == "x"
+
+    tomb = _fixture("TombstoneRecord")
+    assert json.loads(tomb["canonical"])["record"]["reason"] == "right to erasure"
+    changed = Record(dict(tomb["raw"], reason="other"), "TombstoneRecord")
+    assert changed.canonical_payload() != tomb["canonical"]
+
+
+def test_tamper_on_evaluator_verdict_still_breaks_the_hmac():
+    """Excluding `reason` does not loosen the rest of the score."""
+    f = next(x for x in _FIXTURES if x["family"] == "AuditRecord" and x["version"] == 3)
+    for field, value in (("passed", False), ("evaluator", "Other"), ("failure_mode", "X")):
+        raw = json.loads(json.dumps(f["raw"]))
+        raw["eval_result"]["scores"][0][field] = value
+        tampered = Record(raw, "AuditRecord")
+        assert tampered.canonical_payload() != f["canonical"], field
+
+
+def test_call_provenance_families_map_and_verify():
+    """The call-start record and the accepted-set lease are AuditRecord
+    subtypes with their own family names in the envelope."""
+    from sengol_verify.canonical import family_for
+
+    assert family_for({"record_type": "sengol.call.started"}) == "CallStartedRecord"
+    assert family_for({"record_type": "sengol.behaviour.lease"}) == "AcceptedSetLease"
+    for family in ("CallStartedRecord", "AcceptedSetLease"):
+        f = _fixture(family)
+        assert family_for(f["raw"]) == family
+        rec = Record(f["raw"], family)
+        assert rec.canonical_payload() == f["canonical"]
+        assert _hmac_hex(f["hmac_key"], rec.canonical_payload()) == f["raw"]["hmac_signature"]
+        assert json.loads(f["canonical"])["type"] == family
+
+
+def test_accepted_set_lease_cert_ids_are_signed_sorted():
+    f = _fixture("AcceptedSetLease")
+    ids = f["raw"]["accepted_cert_ids"]
+    assert len(ids) == 2
+    assert ids != sorted(ids), "fixture must carry the ids out of order"
+    for order in (ids, list(reversed(ids))):
+        reordered = dict(f["raw"], accepted_cert_ids=order)
+        assert Record(reordered, "AcceptedSetLease").canonical_payload() == f["canonical"]
+    dropped = dict(f["raw"], accepted_cert_ids=ids[:1])
+    assert Record(dropped, "AcceptedSetLease").canonical_payload() != f["canonical"]
+
+
+def test_call_signature_manifests_is_unsigned_on_every_audit_family():
+    """The transport-only sidecar is outside the bytes of every AuditRecord
+    subtype, `AuthorizationDecisionRecord` (which extends the base list)
+    included."""
+    from sengol_verify.canonical import RECORD_TYPE_TO_FAMILY
+
+    f = _fixture("AgentCallRecord", "manifest_sidecar")
+    assert f["raw"]["call_signature_manifests"]
+    rec = Record(f["raw"], "AgentCallRecord")
+    assert rec.canonical_payload() == f["canonical"]
+    assert _hmac_hex(f["hmac_key"], rec.canonical_payload()) == f["raw"]["hmac_signature"]
+
+    families = {"AuditRecord", *RECORD_TYPE_TO_FAMILY.values()}
+    assert {"AuthorizationDecisionRecord", "CallStartedRecord"} <= families
+    for family in sorted(families):
+        raw = {"agent_id": "a", "tenant_id": "t", "payload_version": 1}
+        with_sidecar = dict(raw, call_signature_manifests={"sha256:" + "a" * 64: "raw"})
+        assert (
+            Record(with_sidecar, family).canonical_payload()
+            == Record(raw, family).canonical_payload()
+        ), family
+
+
+def test_certification_anchor_record_id_is_unsigned():
+    f = _fixture("CertificationRecord", "anchor_record_id")
+    assert f["raw"]["anchor_record_id"]
+    rec = Record(f["raw"], "CertificationRecord")
+    assert rec.canonical_payload() == f["canonical"]
+    assert _hmac_hex(f["hmac_key"], rec.canonical_payload()) == f["raw"]["hmac_signature"]
+    assert "anchor_record_id" not in json.loads(f["canonical"])["record"]

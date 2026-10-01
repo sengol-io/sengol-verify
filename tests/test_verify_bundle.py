@@ -120,3 +120,32 @@ def test_record_with_no_canonical_form_fails_instead_of_raising(tmp_path):
     step = next(s for s in result.step_results if s.check == "payload_hash_integrity")
     assert step.result == "FAIL"
     assert bundle["records"][0]["record_id"] in step.detail
+
+
+def test_erased_or_edited_reason_text_leaves_a_genuine_bundle_passing(tmp_path):
+    """The text is not signed (sengol ADR-0078): an erasure serves it empty
+    with a status, and the signed `reason_digest` stays in the bytes. This
+    tool holds no install key, so it cannot check the text itself."""
+    bundle = json.loads((_FIXTURES / "bundle_full_pass.json").read_text())
+    score = bundle["records"][0]["eval_result"]["scores"][0]
+    assert score["reason_digest"].startswith("hmac-sha256:")
+    score["reason"] = ""
+    score["reason_status"] = "ERASED"
+    bundle["records"][1]["eval_result"]["scores"][0]["reason"] = "edited after signing"
+    path = tmp_path / "erased.json"
+    path.write_text(json.dumps(bundle))
+
+    result = verify_bundle_file(path)
+    assert result.verdict == "PASS", [(s.check, s.result, s.detail) for s in result.step_results]
+
+
+def test_tampered_reason_digest_fails(tmp_path):
+    bundle = json.loads((_FIXTURES / "bundle_full_pass.json").read_text())
+    bundle["records"][1]["eval_result"]["scores"][0]["reason_digest"] = "hmac-sha256:" + "0" * 64
+    path = tmp_path / "digest.json"
+    path.write_text(json.dumps(bundle))
+
+    result = verify_bundle_file(path)
+    assert result.verdict == "FAIL"
+    step = next(s for s in result.step_results if s.check == "payload_hash_integrity")
+    assert step.result == "FAIL"

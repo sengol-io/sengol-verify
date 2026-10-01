@@ -5,8 +5,8 @@ One rule signs every record: RFC 8785 (JSON Canonicalization Scheme) over
 ``{"record": <fields>, "type": "<family>"}``, where ``<fields>`` is the
 record's JSON-mode values minus the signature fields and the family's
 ``UNSIGNED_FIELDS``. The per-family/per-version tables below (``_VERSIONS``,
-``_UNSIGNED_FIELDS``, ``_NESTED_UNSIGNED_FIELDS``, ``_UNORDERED_FIELDS``) are
-copied verbatim from ``sengol/core/types.py`` and ``payload_registry.py`` —
+``_UNSIGNED_FIELDS``, ``_NESTED_UNSIGNED_FIELDS``, ``_UNORDERED_FIELDS``)
+mirror ``sengol/core/types.py`` and ``payload_registry.py`` —
 changing one here would make this tool disagree with sengol about what a
 genuine signature covers.
 
@@ -143,6 +143,8 @@ RECORD_TYPE_TO_FAMILY: dict[str, str] = {
     "sengol.authority.model": "AuthorityModelRecord",
     "sengol.authorization.decision": "AuthorizationDecisionRecord",
     "sengol.behaviour.deviation": "BehaviourDeviationRecord",
+    "sengol.behaviour.lease": "AcceptedSetLease",
+    "sengol.call.started": "CallStartedRecord",
     "sengol.certification.revocation": "CertificationRevocationRecord",
     "sengol.certification.supersession": "CertificationSupersessionRecord",
     "sengol.gateway.usage": "GatewayUsageRecord",
@@ -194,6 +196,7 @@ def family_for(raw: dict) -> str:
 #: sengol/core/payload_registry.py::_VERSIONS. This only gates "is this
 #: shape known" — every registered version canonicalizes by the one rule.
 _VERSIONS: dict[str, tuple[int, ...]] = {
+    "AcceptedSetLease": (1,),
     "AgentCallRecord": (1, 3, 4),
     "AgentIdentityBindingRecord": (1, 2),
     "AgentLabelChangeRecord": (1,),
@@ -209,6 +212,7 @@ _VERSIONS: dict[str, tuple[int, ...]] = {
     "BehaviourDeviationRecord": (1,),
     "BehaviourManifestRecord": (1,),
     "CallSetManifestRecord": (1,),
+    "CallStartedRecord": (1,),
     "CertificationAnchorRecord": (1,),
     "CertificationRecord": (2, 3, 4),
     "CertificationRevocationRecord": (1,),
@@ -243,25 +247,33 @@ _VERSIONS: dict[str, tuple[int, ...]] = {
 #: family leaves these out; a family adds its own via `_UNSIGNED_FIELDS`.
 ALWAYS_UNSIGNED_FIELDS = frozenset({"hmac_signature", "signing_backend"})
 
+#: Unsigned on the base ``AuditRecord`` and so on every subtype: the
+#: transport-only manifest sidecar, stripped before a record is stored.
+_AUDIT_UNSIGNED_FIELDS = frozenset({"call_signature_manifests"})
 #: Top-level UNSIGNED_FIELDS per family, mirroring sengol/core/types.py's
-#: class attributes of the same name (ADR-0019).
+#: class attributes of the same name (ADR-0019). An ``AuditRecord`` family
+#: also leaves out ``_AUDIT_UNSIGNED_FIELDS``; see ``_unsigned_fields``.
 _UNSIGNED_FIELDS: dict[str, frozenset[str]] = {
     "AuthorizationDecisionRecord": frozenset(
         {"eval_result", "mcp_server_version", "model", "input_tokens", "output_tokens", "cost_usd"}
     ),
     "SaturationEvent": frozenset({"remediated_at"}),
-    "CertificationRecord": frozenset({"evidence_pack_id"}),
+    "CertificationRecord": frozenset({"anchor_record_id", "evidence_pack_id"}),
 }
-#: One level of nested-model UNSIGNED_FIELDS, keyed by the field name that
-#: holds the nested dict/list-of-dicts, applied wherever that field appears.
-#: CaseBinding (the "bindings" field) is the only nested exclusion sengol
-#: signs today; a future two-level nesting needs a second pass here.
-_NESTED_UNSIGNED_FIELDS: dict[str, frozenset[str]] = {
-    "bindings": frozenset({"config", "reference"}),
+#: UNSIGNED_FIELDS of the models nested inside a record, keyed by the path of
+#: field names from the record root (list positions do not count). A nested
+#: model's own exclusions apply only where the path names it:
+#: ``EvalScore`` (``reason`` is erasable text bound by the signed
+#: ``reason_digest``; ``reason_status`` describes a read) and ``CaseBinding``
+#: (raw content bound by its signed ``config_hash`` and ``reference_hash``).
+_NESTED_UNSIGNED_FIELDS: dict[tuple[str, ...], frozenset[str]] = {
+    ("eval_result", "scores"): frozenset({"reason", "reason_status"}),
+    ("bindings",): frozenset({"config", "reference"}),
 }
 #: Lists whose order carries no meaning; sorted by their own RFC 8785 bytes
 #: before signing (ADR-0019), mirroring each family's UNORDERED_FIELDS.
 _UNORDERED_FIELDS: dict[str, frozenset[str]] = {
+    "AcceptedSetLease": frozenset({"accepted_cert_ids"}),
     "CertificationRecord": frozenset(
         {"acknowledged_unversioned", "endpoint_equivalents", "environment_mounts", "supersedes"}
     ),
@@ -273,18 +285,27 @@ _UNORDERED_FIELDS: dict[str, frozenset[str]] = {
 }
 
 
-def _strip(value: Any, unsigned: frozenset[str]) -> Any:
+def _unsigned_fields(family: str) -> frozenset[str]:
+    unsigned = ALWAYS_UNSIGNED_FIELDS | _UNSIGNED_FIELDS.get(family, frozenset())
+    if family == "AuditRecord" or family in RECORD_TYPE_TO_FAMILY.values():
+        unsigned |= _AUDIT_UNSIGNED_FIELDS
+    return unsigned
+
+
+def _strip(value: Any, unsigned: frozenset[str], path: tuple[str, ...] = ()) -> Any:
     """Drop *unsigned* keys and every ``None`` value, recursing into dicts
-    and lists so a nested model's own exclusions apply wherever it sits."""
+    and lists so a nested model's own exclusions apply where its path
+    from the record root names it."""
     if isinstance(value, dict):
         out = {}
         for k, v in value.items():
             if k in unsigned or v is None:
                 continue
-            out[k] = _strip(v, _NESTED_UNSIGNED_FIELDS.get(k, frozenset()))
+            sub = path + (k,)
+            out[k] = _strip(v, _NESTED_UNSIGNED_FIELDS.get(sub, frozenset()), sub)
         return out
     if isinstance(value, list):
-        return [_strip(v, unsigned) for v in value]
+        return [_strip(v, unsigned, path) for v in value]
     return value
 
 
@@ -305,8 +326,7 @@ def canonical_payload(family: str, version: int, record: Any) -> str:
             f"No canonical payload registered for {family} v{version}. "
             f"Known versions: {_VERSIONS.get(family, ())}"
         )
-    unsigned = ALWAYS_UNSIGNED_FIELDS | _UNSIGNED_FIELDS.get(family, frozenset())
-    fields = _strip(record._raw, unsigned)
+    fields = _strip(record._raw, _unsigned_fields(family))
     for name in _UNORDERED_FIELDS.get(family, frozenset()):
         if isinstance(fields.get(name), list):
             fields[name] = sorted(fields[name], key=_element_key)

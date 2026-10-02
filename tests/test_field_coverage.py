@@ -81,8 +81,9 @@ def test_score_reason_and_status_are_listed_by_path_and_only_where_set():
     assert "eval_result.scores.reason_digest" not in paths
 
     raw = copy.deepcopy(served._raw)
-    raw["eval_result"]["scores"][0]["reason"] = None
-    raw["eval_result"]["scores"][0]["reason_status"] = None
+    for score in raw["eval_result"]["scores"]:
+        score["reason"] = None
+        score["reason_status"] = None
     assert "eval_result.scores.reason" not in unsigned_field_paths(Record(raw, "AuditRecord"))
 
 

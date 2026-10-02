@@ -22,7 +22,11 @@ def _bundle(*, hmac=False, mutate=None) -> dict:
         mutate(entries)
     bundle = {
         "records": [],
-        "public_keys": {"hmac_material": {"k1": _CHAIN["failure"]["hmac_key"]}} if hmac else {},
+        "public_keys": {
+            "hmac_material": {_CHAIN["failure"]["raw"]["key_id"]: _CHAIN["failure"]["hmac_key"]}
+        }
+        if hmac
+        else {},
         "regression_evidence": {
             "format": "sengol-regression-evidence/v1",
             "agent_id": entries["failure"]["raw"]["agent_id"],

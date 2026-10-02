@@ -16,7 +16,7 @@ _EXIT_BY_VERDICT = {"PASS": 0, "UNVERIFIABLE": 1, "FAIL": 2}
 #: consistent, but nothing outside the file attributes it to an appliance.
 EXIT_NO_TRUSTED_KEY = 3
 
-_NO_TRUSTED_KEY_MESSAGE = (
+_UNPINNED_NOTICE = (
     "NO TRUSTED KEY SUPPLIED: countersignatures were checked only against the "
     "public key embedded in this same bundle, so they prove internal consistency, "
     "not which appliance produced it. Pass the appliance's public key from an "
@@ -68,7 +68,7 @@ def _print_human(path: Path, result, trusted: bool) -> None:
         if step.detail:
             print(f"               {step.detail}")
     if not trusted and result.verdict != "FAIL":
-        print(f"\n{_NO_TRUSTED_KEY_MESSAGE}", file=sys.stderr)
+        print(f"\n{_UNPINNED_NOTICE}", file=sys.stderr)
     print(f"\nVerdict: {result.verdict}")
 
 
@@ -155,7 +155,7 @@ def main(argv: list = None) -> int:
     if args.json:
         _print_json(args.bundle, result, trusted)
         if not trusted and result.verdict != "FAIL":
-            print(_NO_TRUSTED_KEY_MESSAGE, file=sys.stderr)
+            print(_UNPINNED_NOTICE, file=sys.stderr)
     else:
         _print_human(args.bundle, result, trusted)
 

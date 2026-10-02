@@ -77,7 +77,8 @@ def verify_bundle(
     band, never read from the bundle. Omitted (``None``), the countersignature
     step still checks each signature against the bundle's own embedded key but
     reports at most UNVERIFIABLE: a key the file supplies proves it is
-    internally consistent, not where it came from. Supplied (even ``{}``),
+    internally consistent, not where it came from. The CLI exits 0 only when
+    this step is PASS. Supplied (even ``{}``),
     it is the only key material trusted: a countersignature whose ``key_id``
     is absent from it, or whose key does not verify it, FAILs.
     """
@@ -391,7 +392,10 @@ def _check_countersigs(
     ``trusted_keys`` supplied (``{}`` counts) is the only key material used,
     looked up by the countersignature's ``key_id``; a ``key_id`` it lacks
     FAILs. Omitted, the bundle's own ``public_keys`` serve as a tamper signal
-    and a clean result is capped at UNVERIFIABLE.
+    and a clean result is capped at UNVERIFIABLE. A bundle with records but
+    no countersignatures is UNVERIFIABLE with or without a key; a bundle with
+    no records and no countersignatures is PASS (as in sengol), which the CLI
+    reads as trust established because the exit code follows this step.
     """
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
     from cryptography.hazmat.primitives.serialization import load_pem_public_key
@@ -404,9 +408,11 @@ def _check_countersigs(
                 result="UNVERIFIABLE",
                 detail=(
                     f"No countersignatures in bundle for {len(records)} "
-                    "record(s) — often a countersign outbox that had not "
-                    "drained at export time, not tampering. Re-export and "
-                    "re-verify."
+                    "record(s), so nothing can be attributed to an appliance "
+                    "even with a trusted key; the CLI exits 3. Stripped "
+                    "countersignatures look the same as a countersign outbox "
+                    "that had not drained at export time. Re-export with "
+                    "countersigning enabled and verify the new file."
                 ),
             )
         return StepResult(

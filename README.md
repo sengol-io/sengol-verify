@@ -68,7 +68,8 @@ before.
 
 The verdict is **PASS**, **FAIL** (tampering or a broken chain), or
 **UNVERIFIABLE** (the bundle honestly doesn't carry enough — e.g. no
-countersignatures yet, no anchor receipts, or no trusted key).
+countersignatures, no anchor receipts, or no trusted key). The exit code does
+not follow the verdict; see "Exit codes".
 
 ## How
 
@@ -129,19 +130,34 @@ recorded at commissioning):
 
 With no trusted key, the `ed25519_countersig` step still checks each signature
 against the embedded key as a tamper signal but reports at most UNVERIFIABLE,
-and the command exits 3 with a message saying so. With any trusted key supplied
-(even an empty file, meaning "trust nothing"), only those keys are used: a
-countersignature whose `key_id` is not among them, or that does not verify
-against it, FAILs. The embedded key is then ignored.
+and the command exits 3 with a message saying no trusted key was supplied. With
+any trusted key supplied (even an empty file, meaning "trust nothing"), only
+those keys are used: a countersignature whose `key_id` is not among them, or
+that does not verify against it, FAILs. The embedded key is then ignored.
+
+**A bundle with no countersignatures is not accepted, key or not.** If the
+countersignatures were stripped, or countersigning was never enabled, the step
+is UNVERIFIABLE even with a trusted key (nothing remains to check against it)
+and the command exits 3 with a message saying so. Re-export the bundle from the
+appliance with countersigning enabled, after its countersign outbox has drained
+(`sengol audit export --wait-for-countersign`), and verify that file. A bundle
+with no records and no countersignatures reads PASS on this step, in sengol and
+here, and exits 0.
 
 ### Exit codes
 
+The codes are those of `sengol audit verify --offline` and follow the
+`ed25519_countersig` step result, not the overall verdict:
+
 | Code | Meaning |
 | ---- | ------- |
-| `0`  | PASS, with a trusted key supplied. |
-| `1`  | UNVERIFIABLE, with a trusted key supplied (for example the HMAC secret is withheld, or anchors are pending). |
-| `2`  | FAIL, whether or not a key was supplied; also a usage, unreadable-file or unreadable-key error. |
-| `3`  | No trusted key supplied and no step FAILed. The bundle may be internally consistent but is not attributed to any appliance; treat it as not verified. |
+| `0`  | No step FAILed and the `ed25519_countersig` step is PASS (countersignatures verified against a trusted key). An overall UNVERIFIABLE from `hmac_verify` (always UNVERIFIABLE offline: bundles carry no HMAC key) or `anchor_coverage` does not change this. |
+| `1`  | At least one step FAILed. Wins over every other outcome. |
+| `2`  | Usage error, unreadable bundle or keys file, or a malformed `--trusted-key`. |
+| `3`  | Nothing FAILed, but countersignature trust is not established: no trusted key was supplied, or a key was supplied and the bundle has no countersignatures. The message names which. Treat the bundle as not verified. |
+
+`--json` reports `trusted_key_supplied` and `countersignature_trust_established`
+(true exactly when the countersignature step is PASS).
 
 ## What it never does
 

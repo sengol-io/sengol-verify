@@ -19,7 +19,13 @@ from helpers import FIXTURES, KEY_ID, TRUST_ARGS, TRUSTED_KEYS, TRUSTED_PEM_PATH
 
 from sengol_verify.bundle import reconstruct_countersigs, reconstruct_records
 from sengol_verify.canonical import Record, family_for
-from sengol_verify.cli import EXIT_NO_TRUSTED_KEY, main
+from sengol_verify.cli import (
+    EXIT_FAIL,
+    EXIT_OK,
+    EXIT_TRUST_NOT_ESTABLISHED,
+    EXIT_USAGE,
+    main,
+)
 from sengol_verify.verify import (
     _check_payload_hashes,
     _check_signed_field_presence,
@@ -103,13 +109,13 @@ def test_forged_bundle_is_never_a_pass_without_a_trusted_key():
     assert result.verdict != "PASS"
 
 
-def test_forged_bundle_cli_exits_2_with_a_key_and_nonzero_without(tmp_path, capsys):
+def test_forged_bundle_cli_exits_1_with_a_key_and_3_without(tmp_path, capsys):
     path = _write(tmp_path, _forge(_load("bundle.json"), Ed25519PrivateKey.generate()))
-    assert main([str(path), *TRUST_ARGS]) == 2
+    assert main([str(path), *TRUST_ARGS]) == EXIT_FAIL
     capsys.readouterr()
     code = main([str(path)])
-    assert code == EXIT_NO_TRUSTED_KEY != 0
-    assert "NO TRUSTED KEY SUPPLIED" in capsys.readouterr().err
+    assert code == EXIT_TRUST_NOT_ESTABLISHED == 3
+    assert "no trusted key supplied" in capsys.readouterr().err
 
 
 def test_empty_trusted_keys_fail_every_countersig():
@@ -149,43 +155,117 @@ def test_the_bundles_embedded_key_is_ignored_when_trusted_keys_are_supplied():
 
 
 def test_cli_without_a_key_exits_3_and_says_so(capsys):
-    assert main([str(FIXTURES / "bundle_full_pass.json")]) == EXIT_NO_TRUSTED_KEY
+    assert main([str(FIXTURES / "bundle_full_pass.json")]) == EXIT_TRUST_NOT_ESTABLISHED
     captured = capsys.readouterr()
-    assert "NO TRUSTED KEY SUPPLIED" in captured.err
+    assert "no trusted key supplied" in captured.err
     assert "Verdict: UNVERIFIABLE" in captured.out
 
 
-def test_cli_json_reports_whether_a_key_was_supplied(capsys):
+def test_cli_json_reports_trust_fields(capsys):
     path = str(FIXTURES / "bundle_full_pass.json")
-    assert main([path, "--json"]) == EXIT_NO_TRUSTED_KEY
-    assert json.loads(capsys.readouterr().out)["trusted_key_supplied"] is False
-    assert main([path, "--json", *TRUST_ARGS]) == 0
-    assert json.loads(capsys.readouterr().out)["trusted_key_supplied"] is True
+    assert main([path, "--json"]) == EXIT_TRUST_NOT_ESTABLISHED
+    out = json.loads(capsys.readouterr().out)
+    assert out["trusted_key_supplied"] is False
+    assert out["countersignature_trust_established"] is False
+    assert main([path, "--json", *TRUST_ARGS]) == EXIT_OK
+    out = json.loads(capsys.readouterr().out)
+    assert out["trusted_key_supplied"] is True
+    assert out["countersignature_trust_established"] is True
 
 
 def test_cli_exit_codes_with_a_key():
-    assert main([str(FIXTURES / "bundle_full_pass.json"), *TRUST_ARGS]) == 0
-    assert main([str(FIXTURES / "bundle.json"), *TRUST_ARGS]) == 1  # HMAC withheld
-    assert main([str(FIXTURES / "bundle_tampered.json"), *TRUST_ARGS]) == 2
-    assert main([str(FIXTURES / "bundle_chain_break.json"), *TRUST_ARGS]) == 2
+    assert main([str(FIXTURES / "bundle_full_pass.json"), *TRUST_ARGS]) == EXIT_OK
+    # HMAC is always UNVERIFIABLE offline; it does not change the code.
+    assert verify_bundle(_load("bundle.json"), trusted_keys=TRUSTED_KEYS).verdict == "UNVERIFIABLE"
+    assert main([str(FIXTURES / "bundle.json"), *TRUST_ARGS]) == EXIT_OK
+    assert main([str(FIXTURES / "bundle_tampered.json"), *TRUST_ARGS]) == EXIT_FAIL
+    assert main([str(FIXTURES / "bundle_chain_break.json"), *TRUST_ARGS]) == EXIT_FAIL
 
 
-def test_cli_fail_is_exit_2_with_or_without_a_key():
-    assert main([str(FIXTURES / "bundle_tampered.json")]) == 2
+def test_cli_fail_is_exit_1_with_or_without_a_key():
+    assert main([str(FIXTURES / "bundle_tampered.json")]) == EXIT_FAIL
+
+
+def _stripped(name: str = "bundle_full_pass.json") -> dict:
+    bundle = _load(name)
+    bundle["countersignatures"] = []
+    return bundle
+
+
+def test_stripped_countersignatures_with_a_trusted_key_exit_3_with_the_stripped_message(
+    tmp_path, capsys
+):
+    path = _write(tmp_path, _stripped())
+    step = _steps(verify_bundle(_stripped(), trusted_keys=TRUSTED_KEYS))["ed25519_countersig"]
+    assert step.result == "UNVERIFIABLE"
+    assert main([str(path), *TRUST_ARGS, "--json"]) == EXIT_TRUST_NOT_ESTABLISHED
+    captured = capsys.readouterr()
+    assert "no countersignatures" in captured.err
+    assert "NOT accepted" in captured.err
+    assert "no trusted key supplied" not in captured.err
+    out = json.loads(captured.out)
+    assert out["trusted_key_supplied"] is True
+    assert out["countersignature_trust_established"] is False
+
+
+def test_no_key_on_a_countersigned_bundle_exits_3_with_the_unpinned_message(capsys):
+    assert main([str(FIXTURES / "bundle_full_pass.json")]) == EXIT_TRUST_NOT_ESTABLISHED
+    err = capsys.readouterr().err
+    assert "no trusted key supplied" in err
+    assert "--trusted-key" in err
+
+
+def test_matching_key_on_a_countersigned_bundle_exits_0_without_a_notice(capsys):
+    assert main([str(FIXTURES / "bundle_full_pass.json"), *TRUST_ARGS]) == EXIT_OK
+    assert capsys.readouterr().err == ""
+
+
+def test_fail_beats_trust_not_established(tmp_path):
+    # Tampered and stripped: FAIL (1), never 3, with or without a key.
+    bundle = _stripped("bundle_tampered.json")
+    path = _write(tmp_path, bundle)
+    assert main([str(path), *TRUST_ARGS]) == EXIT_FAIL
+    assert main([str(path)]) == EXIT_FAIL
+    # A wrong trusted key FAILs the countersig step itself.
+    other = tmp_path / "other.pem"
+    other.write_text(_pem(Ed25519PrivateKey.generate()))
+    full = str(FIXTURES / "bundle_full_pass.json")
+    assert main([full, "--trusted-key", f"{KEY_ID}={other}"]) == EXIT_FAIL
+
+
+def test_a_bundle_with_no_records_and_no_countersignatures_passes_the_step_and_exits_0(tmp_path):
+    bundle = _load("bundle_full_pass.json")
+    bundle.update(records=[], countersignatures=[], anchor_receipts=[])
+    step = _steps(verify_bundle(bundle))["ed25519_countersig"]
+    assert step.result == "PASS"
+    path = _write(tmp_path, bundle)
+    assert main([str(path)]) == EXIT_OK
+    assert main([str(path), *TRUST_ARGS]) == EXIT_OK
+
+
+def test_exit_code_follows_the_step_result_not_the_verdict():
+    """Restoring a verdict-based mapping (UNVERIFIABLE -> 1/3 by key) must fail here."""
+    full = str(FIXTURES / "bundle_full_pass.json")
+    for argv, code in (
+        ([str(FIXTURES / "bundle.json"), *TRUST_ARGS], EXIT_OK),  # overall UNVERIFIABLE
+        ([full, *TRUST_ARGS], EXIT_OK),
+        ([full], EXIT_TRUST_NOT_ESTABLISHED),
+    ):
+        assert main(argv) == code
 
 
 def test_cli_trusted_keys_file_and_repeated_keys(tmp_path):
     path = str(FIXTURES / "bundle_full_pass.json")
     keys_file = tmp_path / "keys.json"
     keys_file.write_text(json.dumps(TRUSTED_KEYS))
-    assert main([path, "--trusted-keys-file", str(keys_file)]) == 0
+    assert main([path, "--trusted-keys-file", str(keys_file)]) == EXIT_OK
     other = tmp_path / "other.pem"
     other.write_text(_pem(Ed25519PrivateKey.generate()))
     # Repeatable; a --trusted-key overrides the same key id from the file.
-    assert main([path, "--trusted-key", f"x={other}", *TRUST_ARGS]) == 0
+    assert main([path, "--trusted-key", f"x={other}", *TRUST_ARGS]) == EXIT_OK
     assert (
         main([path, "--trusted-keys-file", str(keys_file), "--trusted-key", f"{KEY_ID}={other}"])
-        == 2
+        == EXIT_FAIL
     )
 
 
@@ -193,7 +273,8 @@ def test_cli_empty_trusted_keys_file_trusts_nothing(tmp_path):
     keys_file = tmp_path / "keys.json"
     keys_file.write_text("{}")
     assert (
-        main([str(FIXTURES / "bundle_full_pass.json"), "--trusted-keys-file", str(keys_file)]) == 2
+        main([str(FIXTURES / "bundle_full_pass.json"), "--trusted-keys-file", str(keys_file)])
+        == EXIT_FAIL
     )
 
 
@@ -206,7 +287,7 @@ def test_cli_empty_trusted_keys_file_trusts_nothing(tmp_path):
     ],
 )
 def test_cli_unreadable_trust_arguments_exit_2(argv, capsys):
-    assert main([str(FIXTURES / "bundle_full_pass.json"), *argv]) == 2
+    assert main([str(FIXTURES / "bundle_full_pass.json"), *argv]) == EXIT_USAGE
     assert "sengol-verify:" in capsys.readouterr().err
 
 

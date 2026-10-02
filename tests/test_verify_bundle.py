@@ -160,7 +160,7 @@ def test_unregistered_record_type_fails_naming_the_type(tmp_path, record_type, c
     """A record whose `record_type` this verifier does not register has no
     canonical payload: the verdict is FAIL and the step names the record and
     its type. It is never verified as a generic AuditRecord, and no exception
-    escapes (the CLI exits 2 and prints the same detail as JSON)."""
+    escapes (the CLI exits 1 and prints the same detail as JSON)."""
     bundle = json.loads((_FIXTURES / "bundle_full_pass.json").read_text())
     bundle["records"][1]["record_type"] = record_type
     victim = bundle["records"][1]["record_id"]
@@ -182,7 +182,7 @@ def test_unregistered_record_type_fails_naming_the_type(tmp_path, record_type, c
 
     from sengol_verify.cli import main
 
-    assert main([str(path), "--json", *TRUST_ARGS]) == 2
+    assert main([str(path), "--json", *TRUST_ARGS]) == 1
     out = json.loads(capsys.readouterr().out)
     assert out["verdict"] == "FAIL"
     assert repr(record_type) in next(

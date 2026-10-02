@@ -1,0 +1,411 @@
+{
+  "versions": {
+    "AcceptedSetLease": [
+      1
+    ],
+    "AgentCallRecord": [
+      1,
+      3,
+      4
+    ],
+    "AgentQuarantineRecord": [
+      1
+    ],
+    "AgentTierChangeRecord": [
+      1
+    ],
+    "AuditRecord": [
+      1,
+      2,
+      3
+    ],
+    "AuthorizationDecisionRecord": [
+      1,
+      2
+    ],
+    "BehaviourDeviationRecord": [
+      1
+    ],
+    "BehaviourManifestRecord": [
+      1
+    ],
+    "CallSetManifestRecord": [
+      1
+    ],
+    "CallStartedRecord": [
+      1
+    ],
+    "CertificationAnchorRecord": [
+      1
+    ],
+    "CertificationRecord": [
+      2,
+      3,
+      4
+    ],
+    "CertificationRevocationRecord": [
+      1
+    ],
+    "CertificationSupersessionRecord": [
+      1
+    ],
+    "DeploymentAuthorizationRecord": [
+      1
+    ],
+    "EvaluationCaseRecord": [
+      1
+    ],
+    "EvaluationRunRecord": [
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "GatewayUsageRecord": [
+      1
+    ],
+    "GoldScoreRecord": [
+      1,
+      2
+    ],
+    "JudgeModelCard": [
+      1,
+      2
+    ],
+    "ProductionFailureRecord": [
+      1
+    ],
+    "PromotionDecisionRecord": [
+      1,
+      2
+    ],
+    "RegressionCaseRecord": [
+      1
+    ],
+    "SaturationEvent": [
+      1,
+      2
+    ],
+    "SoDApprovalRecord": [
+      1
+    ],
+    "SoDDecisionRecord": [
+      1,
+      2,
+      3
+    ],
+    "TombstoneRecord": [
+      1,
+      2
+    ],
+    "TraceRevealRecord": [
+      1
+    ]
+  },
+  "record_types": {
+    "sengol.agent.call": "AgentCallRecord",
+    "sengol.agent.tier_change": "AgentTierChangeRecord",
+    "sengol.audit.certification_anchor": "CertificationAnchorRecord",
+    "sengol.audit.tombstone": "TombstoneRecord",
+    "sengol.audit.trace_reveal": "TraceRevealRecord",
+    "sengol.authorization.decision": "AuthorizationDecisionRecord",
+    "sengol.behaviour.deviation": "BehaviourDeviationRecord",
+    "sengol.behaviour.lease": "AcceptedSetLease",
+    "sengol.call.started": "CallStartedRecord",
+    "sengol.certification.revocation": "CertificationRevocationRecord",
+    "sengol.certification.supersession": "CertificationSupersessionRecord",
+    "sengol.gateway.usage": "GatewayUsageRecord",
+    "sengol.judge.model_card": "JudgeModelCard",
+    "sengol.judge.promotion_decision": "PromotionDecisionRecord",
+    "sengol.lifecycle.deployment_authorization": "DeploymentAuthorizationRecord",
+    "sengol.quarantine.event": "AgentQuarantineRecord",
+    "sengol.sod.approval": "SoDApprovalRecord",
+    "sengol.sod.decision": "SoDDecisionRecord"
+  },
+  "unsigned": {
+    "AcceptedSetLease": [
+      "call_signature_manifests",
+      "hmac_signature",
+      "signing_backend"
+    ],
+    "AgentCallRecord": [
+      "call_signature_manifests",
+      "hmac_signature",
+      "signing_backend"
+    ],
+    "AgentQuarantineRecord": [
+      "call_signature_manifests",
+      "hmac_signature",
+      "signing_backend"
+    ],
+    "AgentTierChangeRecord": [
+      "call_signature_manifests",
+      "hmac_signature",
+      "signing_backend"
+    ],
+    "AuditRecord": [
+      "call_signature_manifests",
+      "hmac_signature",
+      "signing_backend"
+    ],
+    "AuthorizationDecisionRecord": [
+      "call_signature_manifests",
+      "cost_usd",
+      "eval_result",
+      "hmac_signature",
+      "input_tokens",
+      "mcp_server_version",
+      "model",
+      "output_tokens",
+      "signing_backend"
+    ],
+    "BehaviourDeviationRecord": [
+      "call_signature_manifests",
+      "hmac_signature",
+      "signing_backend"
+    ],
+    "BehaviourManifestRecord": [
+      "hmac_signature",
+      "signing_backend"
+    ],
+    "CallSetManifestRecord": [
+      "hmac_signature",
+      "signing_backend"
+    ],
+    "CallStartedRecord": [
+      "call_signature_manifests",
+      "hmac_signature",
+      "signing_backend"
+    ],
+    "CertificationAnchorRecord": [
+      "call_signature_manifests",
+      "hmac_signature",
+      "signing_backend"
+    ],
+    "CertificationRecord": [
+      "anchor_record_id",
+      "evidence_pack_id",
+      "hmac_signature",
+      "signing_backend"
+    ],
+    "CertificationRevocationRecord": [
+      "call_signature_manifests",
+      "hmac_signature",
+      "signing_backend"
+    ],
+    "CertificationSupersessionRecord": [
+      "call_signature_manifests",
+      "hmac_signature",
+      "signing_backend"
+    ],
+    "DeploymentAuthorizationRecord": [
+      "call_signature_manifests",
+      "hmac_signature",
+      "signing_backend"
+    ],
+    "EvaluationCaseRecord": [
+      "hmac_signature",
+      "signing_backend"
+    ],
+    "EvaluationRunRecord": [
+      "hmac_signature",
+      "signing_backend"
+    ],
+    "GatewayUsageRecord": [
+      "call_signature_manifests",
+      "hmac_signature",
+      "signing_backend"
+    ],
+    "GoldScoreRecord": [
+      "hmac_signature",
+      "signing_backend"
+    ],
+    "JudgeModelCard": [
+      "call_signature_manifests",
+      "hmac_signature",
+      "signing_backend"
+    ],
+    "ProductionFailureRecord": [
+      "hmac_signature",
+      "signing_backend"
+    ],
+    "PromotionDecisionRecord": [
+      "call_signature_manifests",
+      "hmac_signature",
+      "signing_backend"
+    ],
+    "RegressionCaseRecord": [
+      "hmac_signature",
+      "signing_backend"
+    ],
+    "SaturationEvent": [
+      "hmac_signature",
+      "remediated_at",
+      "signing_backend"
+    ],
+    "SoDApprovalRecord": [
+      "call_signature_manifests",
+      "hmac_signature",
+      "signing_backend"
+    ],
+    "SoDDecisionRecord": [
+      "call_signature_manifests",
+      "hmac_signature",
+      "signing_backend"
+    ],
+    "TombstoneRecord": [
+      "call_signature_manifests",
+      "hmac_signature",
+      "signing_backend"
+    ],
+    "TraceRevealRecord": [
+      "call_signature_manifests",
+      "hmac_signature",
+      "signing_backend"
+    ]
+  },
+  "unordered": {
+    "AcceptedSetLease": [
+      "accepted_cert_ids"
+    ],
+    "CertificationRecord": [
+      "acknowledged_unversioned",
+      "endpoint_equivalents",
+      "environment_mounts",
+      "supersedes"
+    ],
+    "CertificationSupersessionRecord": [
+      "supersedes"
+    ],
+    "EvaluationCaseRecord": [
+      "scores",
+      "skipped"
+    ],
+    "EvaluationRunRecord": [
+      "evaluator_manifest"
+    ],
+    "SoDDecisionRecord": [
+      "approval_record_ids"
+    ],
+    "TombstoneRecord": [
+      "purged_trace_ids"
+    ]
+  },
+  "nested_unsigned": {
+    "AcceptedSetLease": {
+      "eval_result.scores": [
+        "reason",
+        "reason_status"
+      ]
+    },
+    "AgentCallRecord": {
+      "eval_result.scores": [
+        "reason",
+        "reason_status"
+      ]
+    },
+    "AgentQuarantineRecord": {
+      "eval_result.scores": [
+        "reason",
+        "reason_status"
+      ]
+    },
+    "AgentTierChangeRecord": {
+      "eval_result.scores": [
+        "reason",
+        "reason_status"
+      ]
+    },
+    "AuditRecord": {
+      "eval_result.scores": [
+        "reason",
+        "reason_status"
+      ]
+    },
+    "BehaviourDeviationRecord": {
+      "eval_result.scores": [
+        "reason",
+        "reason_status"
+      ]
+    },
+    "CallStartedRecord": {
+      "eval_result.scores": [
+        "reason",
+        "reason_status"
+      ]
+    },
+    "CertificationAnchorRecord": {
+      "eval_result.scores": [
+        "reason",
+        "reason_status"
+      ]
+    },
+    "CertificationRevocationRecord": {
+      "eval_result.scores": [
+        "reason",
+        "reason_status"
+      ]
+    },
+    "CertificationSupersessionRecord": {
+      "eval_result.scores": [
+        "reason",
+        "reason_status"
+      ]
+    },
+    "DeploymentAuthorizationRecord": {
+      "eval_result.scores": [
+        "reason",
+        "reason_status"
+      ]
+    },
+    "GatewayUsageRecord": {
+      "eval_result.scores": [
+        "reason",
+        "reason_status"
+      ]
+    },
+    "JudgeModelCard": {
+      "eval_result.scores": [
+        "reason",
+        "reason_status"
+      ]
+    },
+    "PromotionDecisionRecord": {
+      "eval_result.scores": [
+        "reason",
+        "reason_status"
+      ]
+    },
+    "RegressionCaseRecord": {
+      "bindings": [
+        "config",
+        "reference"
+      ]
+    },
+    "SoDApprovalRecord": {
+      "eval_result.scores": [
+        "reason",
+        "reason_status"
+      ]
+    },
+    "SoDDecisionRecord": {
+      "eval_result.scores": [
+        "reason",
+        "reason_status"
+      ]
+    },
+    "TombstoneRecord": {
+      "eval_result.scores": [
+        "reason",
+        "reason_status"
+      ]
+    },
+    "TraceRevealRecord": {
+      "eval_result.scores": [
+        "reason",
+        "reason_status"
+      ]
+    }
+  }
+}

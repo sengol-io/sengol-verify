@@ -8,6 +8,8 @@ import dataclasses
 import json
 from pathlib import Path
 
+from helpers import TRUST_ARGS, TRUSTED_KEYS
+
 from sengol_verify.bundle import reconstruct_records
 from sengol_verify.canonical import Record, unsigned_field_paths
 from sengol_verify.cli import main
@@ -81,8 +83,9 @@ def test_score_reason_and_status_are_listed_by_path_and_only_where_set():
     assert "eval_result.scores.reason_digest" not in paths
 
     raw = copy.deepcopy(served._raw)
-    raw["eval_result"]["scores"][0]["reason"] = None
-    raw["eval_result"]["scores"][0]["reason_status"] = None
+    for score in raw["eval_result"]["scores"]:
+        score["reason"] = None
+        score["reason_status"] = None
     assert "eval_result.scores.reason" not in unsigned_field_paths(Record(raw, "AuditRecord"))
 
 
@@ -147,12 +150,12 @@ def test_unregistered_record_type_is_not_assessed_and_does_not_fail_the_step():
 
 
 def test_row_shape_is_unchanged_in_the_report_and_in_json(tmp_path, capsys):
-    result = verify_bundle_file(_FIXTURES / "bundle_full_pass.json")
+    result = verify_bundle_file(_FIXTURES / "bundle_full_pass.json", trusted_keys=TRUSTED_KEYS)
     row = next(s for s in result.step_results if s.check == "field_coverage")
     assert [f.name for f in dataclasses.fields(row)] == ["check", "scope", "result", "detail"]
-    assert result.step_results[5] is row
+    assert result.step_results[6] is row
 
-    assert main([str(_FIXTURES / "bundle_full_pass.json"), "--json"]) == 0
+    assert main([str(_FIXTURES / "bundle_full_pass.json"), "--json", *TRUST_ARGS]) == 0
     steps = json.loads(capsys.readouterr().out)["steps"]
     out = next(s for s in steps if s["check"] == "field_coverage")
     assert list(out) == ["check", "scope", "result", "detail"]

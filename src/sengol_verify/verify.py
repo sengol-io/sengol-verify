@@ -1,4 +1,4 @@
-"""Six-step offline bundle verification, ported from sengol's
+"""Offline bundle verification, ported from sengol's
 ``sengol/governance/offline_verify.py``. Recomputes every check over the
 exact bytes reconstructed from the bundle's stored JSON — nothing here
 normalizes a datetime or otherwise touches what was signed.
@@ -55,18 +55,32 @@ class BundleResult:
         return "PASS"
 
 
-def verify_bundle_file(path) -> BundleResult:
+def verify_bundle_file(path, *, trusted_keys: dict | None = None) -> BundleResult:
     """Load and verify a bundle from a .json file, directory, or zip."""
     bundle = load_bundle(path)
     portable = "judge_evidence_pack" in bundle
-    return verify_bundle(bundle, portable=portable)
+    return verify_bundle(bundle, portable=portable, trusted_keys=trusted_keys)
 
 
-def verify_bundle(bundle: dict, *, portable: bool = False) -> BundleResult:
-    """Verify all six checks against an export bundle dict.
+def verify_bundle(
+    bundle: dict,
+    *,
+    portable: bool = False,
+    trusted_keys: dict | None = None,
+) -> BundleResult:
+    """Verify an export bundle dict (the checks named in the README).
 
     ``portable=True`` tolerates the deliberate sequence-number gaps in a
     sparse JudgeEvidencePack instead of treating every gap as a break.
+
+    ``trusted_keys`` is a ``{key_id: pem}`` map the caller obtained out of
+    band, never read from the bundle. Omitted (``None``), the countersignature
+    step still checks each signature against the bundle's own embedded key but
+    reports at most UNVERIFIABLE: a key the file supplies proves it is
+    internally consistent, not where it came from. The CLI exits 0 only when
+    this step is PASS. Supplied (even ``{}``),
+    it is the only key material trusted: a countersignature whose ``key_id``
+    is absent from it, or whose key does not verify it, FAILs.
     """
     records = reconstruct_records(bundle)
     countersigs = reconstruct_countersigs(bundle)
@@ -74,16 +88,82 @@ def verify_bundle(bundle: dict, *, portable: bool = False) -> BundleResult:
     public_keys: dict = bundle.get("public_keys", {})
 
     results = [
+        _check_canonicalizable(records),
         _check_payload_hashes(records, countersigs),
         _check_hmac(records, public_keys),
         _check_chain_continuity(records, portable=portable),
-        _check_countersigs(records, countersigs, public_keys),
+        _check_countersigs(records, countersigs, public_keys, trusted_keys),
         _check_anchors(records, anchors),
         _check_field_coverage(records),
+        _check_signed_field_presence(records),
     ]
     if bundle.get("regression_evidence") is not None:
         results.append(_check_regression_lineage(bundle["regression_evidence"], public_keys))
     return BundleResult(step_results=results)
+
+
+def _check_canonicalizable(records: list) -> StepResult:
+    """Step 0: every record has a canonical payload.
+
+    A value with no RFC 8785 form (NaN, infinity, an integer beyond 2**53), an
+    unregistered payload version or an unregistered ``record_type`` cannot
+    have been signed as it stands. The failing records are named here; the
+    later steps that recompute the payload fail them too.
+    """
+    failures = []
+    for record in records:
+        try:
+            record.canonical_payload()
+        except (rfc8785.CanonicalizationError, UnknownPayloadVersion, UnknownRecordType) as exc:
+            failures.append(f"{record.record_id}: {exc}")
+    scope = f"{len(records)} records"
+    if failures:
+        return StepResult(
+            "canonical_payload",
+            scope,
+            "FAIL",
+            "record(s) with no canonical payload: " + "; ".join(failures),
+        )
+    return StepResult("canonical_payload", scope, "PASS")
+
+
+#: Keys this verifier reads with a default when a record lacks them. A record
+#: missing one would otherwise be verified as if it carried the default; the
+#: join key ``record_id`` is the sharpest case, since a record without it
+#: matches no countersignature and reads as merely "not countersigned yet".
+_DEFAULTED_KEYS = (
+    "record_id",
+    "tenant_id",
+    "agent_id",
+    "sequence_number",
+    "prev_hash",
+    "key_id",
+    "payload_version",
+)
+
+
+def _check_signed_field_presence(records: list) -> StepResult:
+    """Step 7: no key this verifier would fill with a default is missing.
+
+    Nothing here is refilled from a model default: a deleted signed key leaves
+    the recomputed bytes short of what was signed, and the payload hash or HMAC
+    step fails on it. The exception is a key the verifier itself reads with a
+    default (``_DEFAULTED_KEYS``), which this step requires to be present.
+    """
+    failures = []
+    for record in records:
+        missing = [k for k in _DEFAULTED_KEYS if record._raw.get(k) is None]
+        if missing:
+            failures.append(f"{record._raw.get('record_id')!r}: {', '.join(missing)}")
+    scope = f"{len(records)} records"
+    if failures:
+        return StepResult(
+            "signed_field_presence",
+            scope,
+            "FAIL",
+            "key(s) missing from the bundle: " + "; ".join(failures),
+        )
+    return StepResult("signed_field_presence", scope, "PASS")
 
 
 def _check_field_coverage(records: list) -> StepResult:
@@ -304,9 +384,19 @@ def _check_chain_continuity(records: list, *, portable: bool = False) -> StepRes
     )
 
 
-def _check_countersigs(records: list, countersigs: list, public_keys: dict) -> StepResult:
-    """Step 4: verify Ed25519 countersignatures over each record's payload hash."""
-    from cryptography.exceptions import InvalidSignature
+def _check_countersigs(
+    records: list, countersigs: list, public_keys: dict, trusted_keys: dict | None = None
+) -> StepResult:
+    """Step 4: verify Ed25519 countersignatures over each record's payload hash.
+
+    ``trusted_keys`` supplied (``{}`` counts) is the only key material used,
+    looked up by the countersignature's ``key_id``; a ``key_id`` it lacks
+    FAILs. Omitted, the bundle's own ``public_keys`` serve as a tamper signal
+    and a clean result is capped at UNVERIFIABLE. A bundle with records but
+    no countersignatures is UNVERIFIABLE with or without a key; a bundle with
+    no records and no countersignatures is PASS (as in sengol), which the CLI
+    reads as trust established because the exit code follows this step.
+    """
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
     from cryptography.hazmat.primitives.serialization import load_pem_public_key
 
@@ -318,9 +408,11 @@ def _check_countersigs(records: list, countersigs: list, public_keys: dict) -> S
                 result="UNVERIFIABLE",
                 detail=(
                     f"No countersignatures in bundle for {len(records)} "
-                    "record(s) — often a countersign outbox that had not "
-                    "drained at export time, not tampering. Re-export and "
-                    "re-verify."
+                    "record(s), so nothing can be attributed to an appliance "
+                    "even with a trusted key; the CLI exits 3. Stripped "
+                    "countersignatures look the same as a countersign outbox "
+                    "that had not drained at export time. Re-export with "
+                    "countersigning enabled and verify the new file."
                 ),
             )
         return StepResult(
@@ -332,13 +424,21 @@ def _check_countersigs(records: list, countersigs: list, public_keys: dict) -> S
 
     failures = []
     unverifiable = []
+    untrusted = []
     record_map = {r.record_id: r for r in records}
+    has_trust_anchor = trusted_keys is not None
 
     for cs in countersigs:
-        pem_str = public_keys.get(cs.key_id, "")
-        if not pem_str:
-            unverifiable.append(cs.countersig_id)
-            continue
+        if has_trust_anchor:
+            pem_str = trusted_keys.get(cs.key_id, "")  # type: ignore[union-attr]
+            if not pem_str:
+                failures.append(f"{cs.countersig_id} (key_id {cs.key_id!r} not in trusted keys)")
+                continue
+        else:
+            pem_str = public_keys.get(cs.key_id, "")
+            if not pem_str:
+                unverifiable.append(cs.countersig_id)
+                continue
         try:
             pub_key = load_pem_public_key(pem_str.encode())
             if not isinstance(pub_key, Ed25519PublicKey):
@@ -354,10 +454,12 @@ def _check_countersigs(records: list, countersigs: list, public_keys: dict) -> S
                 expected_hash = _payload_hash(record)
                 if cs.payload_hash != expected_hash:
                     failures.append(cs.countersig_id)
-        except InvalidSignature:
-            failures.append(cs.countersig_id)
+                    continue
         except Exception:
             failures.append(cs.countersig_id)
+            continue
+        if not has_trust_anchor:
+            untrusted.append(cs.countersig_id)
 
     if failures:
         return StepResult(
@@ -373,11 +475,24 @@ def _check_countersigs(records: list, countersigs: list, public_keys: dict) -> S
             result="UNVERIFIABLE",
             detail=f"Key not in bundle for countersig_ids: {unverifiable}",
         )
+    if untrusted:
+        return StepResult(
+            check="ed25519_countersig",
+            scope="all_countersigs",
+            result="UNVERIFIABLE",
+            detail=(
+                f"{len(untrusted)} countersig(s) are valid against the public key embedded in "
+                "this same bundle, but no trusted key was supplied to check them against: "
+                "whoever produced this file could have minted that key. Supply the "
+                "appliance's public key from an out-of-band source with --trusted-key "
+                "KEY_ID=PEM_PATH or --trusted-keys-file to attribute this evidence."
+            ),
+        )
     return StepResult(
         check="ed25519_countersig",
         scope="all_countersigs",
         result="PASS",
-        detail=f"{len(countersigs)} countersig(s) verified",
+        detail=f"{len(countersigs)} countersig(s) verified against a trusted key",
     )
 
 
@@ -543,6 +658,10 @@ def _check_regression_lineage(section: dict, public_keys: dict) -> StepResult:
                 continue
             dangling("run", cr.get("case_id"), run.run_id, "RegressionCaseRecord")
     for cert in by_family["CertificationRecord"]:
+        if not cert.run_payload_sha256:
+            problems.append(
+                f"certification {cert.cert_id}: run_payload_sha256 is missing, so it binds no run"
+            )
         run = recs["EvaluationRunRecord"].get(str(cert.run_id))
         if run is None:
             problems.append(

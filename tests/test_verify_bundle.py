@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 
 import pytest
+from helpers import TRUST_ARGS, TRUSTED_KEYS
 
 from sengol_verify.verify import verify_bundle_file
 
@@ -22,10 +23,11 @@ def test_genuine_bundle_verifies_unverifiable_only_on_withheld_hmac():
     the honest verdict is UNVERIFIABLE on that ONE step — every other step,
     including the Ed25519 countersignatures, is a clean PASS.
     """
-    result = verify_bundle_file(_FIXTURES / "bundle.json")
+    result = verify_bundle_file(_FIXTURES / "bundle.json", trusted_keys=TRUSTED_KEYS)
     by_check = {s.check: s for s in result.step_results}
     assert by_check["hmac_verify"].result == "UNVERIFIABLE"
     for check in (
+        "canonical_payload",
         "payload_hash_integrity",
         "chain_continuity",
         "ed25519_countersig",
@@ -37,13 +39,13 @@ def test_genuine_bundle_verifies_unverifiable_only_on_withheld_hmac():
 
 
 def test_bundle_with_hmac_material_verifies_full_pass():
-    result = verify_bundle_file(_FIXTURES / "bundle_full_pass.json")
+    result = verify_bundle_file(_FIXTURES / "bundle_full_pass.json", trusted_keys=TRUSTED_KEYS)
     assert result.verdict == "PASS", [(s.check, s.result, s.detail) for s in result.step_results]
 
 
 def test_genuine_bundle_as_directory(tmp_path):
     (tmp_path / "bundle.json").write_text((_FIXTURES / "bundle_full_pass.json").read_text())
-    result = verify_bundle_file(tmp_path)
+    result = verify_bundle_file(tmp_path, trusted_keys=TRUSTED_KEYS)
     assert result.verdict == "PASS"
 
 
@@ -54,7 +56,7 @@ def test_genuine_bundle_as_zip(tmp_path):
     with zipfile.ZipFile(zpath, "w") as zf:
         zf.write(_FIXTURES / "bundle_full_pass.json", "bundle.json")
 
-    result = verify_bundle_file(zpath)
+    result = verify_bundle_file(zpath, trusted_keys=TRUSTED_KEYS)
     assert result.verdict == "PASS"
 
 
@@ -135,7 +137,7 @@ def test_erased_or_edited_reason_text_leaves_a_genuine_bundle_passing(tmp_path):
     path = tmp_path / "erased.json"
     path.write_text(json.dumps(bundle))
 
-    result = verify_bundle_file(path)
+    result = verify_bundle_file(path, trusted_keys=TRUSTED_KEYS)
     assert result.verdict == "PASS", [(s.check, s.result, s.detail) for s in result.step_results]
 
 
@@ -175,11 +177,12 @@ def test_unregistered_record_type_fails_naming_the_type(tmp_path, record_type, c
     assert steps["hmac_verify"].result == "FAIL"
     assert steps["ed25519_countersig"].result == "FAIL"
     assert [s.result for s in result.step_results].count("FAIL") >= 3
-    assert len(result.step_results) == 6
+    assert len(result.step_results) == 8
+    assert steps["canonical_payload"].result == "FAIL"
 
     from sengol_verify.cli import main
 
-    assert main([str(path), "--json"]) == 2
+    assert main([str(path), "--json", *TRUST_ARGS]) == 2
     out = json.loads(capsys.readouterr().out)
     assert out["verdict"] == "FAIL"
     assert repr(record_type) in next(

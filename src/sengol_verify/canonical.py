@@ -165,6 +165,7 @@ RECORD_TYPE_TO_FAMILY: dict[str, str] = {
     "sengol.judge.promotion_decision": "PromotionDecisionRecord",
     "sengol.lifecycle.deployment_authorization": "DeploymentAuthorizationRecord",
     "sengol.quarantine.event": "AgentQuarantineRecord",
+    "sengol.sod.approval": "SoDApprovalRecord",
     "sengol.sod.decision": "SoDDecisionRecord",
 }
 
@@ -229,6 +230,7 @@ _VERSIONS: dict[str, tuple[int, ...]] = {
     "PromotionDecisionRecord": (1, 2),
     "RegressionCaseRecord": (1,),
     "SaturationEvent": (1, 2),
+    "SoDApprovalRecord": (1,),
     "SoDDecisionRecord": (1, 2, 3),
     "TombstoneRecord": (1, 2),
     "TraceRevealRecord": (1,),
@@ -253,13 +255,18 @@ _UNSIGNED_FIELDS: dict[str, frozenset[str]] = {
 }
 #: UNSIGNED_FIELDS of the models nested inside a record, keyed by the path of
 #: field names from the record root (list positions do not count). A nested
-#: model's own exclusions apply only where the path names it:
+#: model's own exclusions apply only where the path names it, and only in the
+#: families whose class holds that model at that path:
 #: ``EvalScore`` (``reason`` is erasable text bound by the signed
-#: ``reason_digest``; ``reason_status`` describes a read) and ``CaseBinding``
-#: (raw content bound by its signed ``config_hash`` and ``reference_hash``).
-_NESTED_UNSIGNED_FIELDS: dict[tuple[str, ...], frozenset[str]] = {
+#: ``reason_digest``; ``reason_status`` describes a read) sits at
+#: ``eval_result.scores`` in every ``AuditRecord`` subtype, and ``CaseBinding``
+#: (raw content bound by its signed ``config_hash`` and ``reference_hash``)
+#: sits at ``bindings`` in ``RegressionCaseRecord`` alone.
+_AUDIT_NESTED_UNSIGNED_FIELDS: dict[tuple[str, ...], frozenset[str]] = {
     ("eval_result", "scores"): frozenset({"reason", "reason_status"}),
-    ("bindings",): frozenset({"config", "reference"}),
+}
+_NESTED_UNSIGNED_FIELDS: dict[str, dict[tuple[str, ...], frozenset[str]]] = {
+    "RegressionCaseRecord": {("bindings",): frozenset({"config", "reference"})},
 }
 #: Lists whose order carries no meaning; sorted by their own RFC 8785 bytes
 #: before signing (ADR-0019), mirroring each family's UNORDERED_FIELDS.
@@ -271,18 +278,35 @@ _UNORDERED_FIELDS: dict[str, frozenset[str]] = {
     "CertificationSupersessionRecord": frozenset({"supersedes"}),
     "EvaluationCaseRecord": frozenset({"scores", "skipped"}),
     "EvaluationRunRecord": frozenset({"evaluator_manifest"}),
+    "SoDDecisionRecord": frozenset({"approval_record_ids"}),
     "TombstoneRecord": frozenset({"purged_trace_ids"}),
 }
 
 
 def _unsigned_fields(family: str) -> frozenset[str]:
     unsigned = ALWAYS_UNSIGNED_FIELDS | _UNSIGNED_FIELDS.get(family, frozenset())
-    if family == "AuditRecord" or family in RECORD_TYPE_TO_FAMILY.values():
+    if _is_audit_family(family):
         unsigned |= _AUDIT_UNSIGNED_FIELDS
     return unsigned
 
 
-def _strip(value: Any, unsigned: frozenset[str], path: tuple[str, ...] = ()) -> Any:
+def _is_audit_family(family: str) -> bool:
+    return family == "AuditRecord" or family in RECORD_TYPE_TO_FAMILY.values()
+
+
+def nested_unsigned_fields(family: str) -> dict[tuple[str, ...], frozenset[str]]:
+    """The nested-model exclusions that apply to *family*, by path."""
+    if _is_audit_family(family):
+        return _AUDIT_NESTED_UNSIGNED_FIELDS
+    return _NESTED_UNSIGNED_FIELDS.get(family, {})
+
+
+def _strip(
+    value: Any,
+    unsigned: frozenset[str],
+    nested: dict[tuple[str, ...], frozenset[str]],
+    path: tuple[str, ...] = (),
+) -> Any:
     """Drop *unsigned* keys and every ``None`` value, recursing into dicts
     and lists so a nested model's own exclusions apply where its path
     from the record root names it."""
@@ -292,10 +316,10 @@ def _strip(value: Any, unsigned: frozenset[str], path: tuple[str, ...] = ()) -> 
             if k in unsigned or v is None:
                 continue
             sub = path + (k,)
-            out[k] = _strip(v, _NESTED_UNSIGNED_FIELDS.get(sub, frozenset()), sub)
+            out[k] = _strip(v, nested.get(sub, frozenset()), nested, sub)
         return out
     if isinstance(value, list):
-        return [_strip(v, unsigned, path) for v in value]
+        return [_strip(v, unsigned, nested, path) for v in value]
     return value
 
 
@@ -316,7 +340,7 @@ def canonical_payload(family: str, version: int, record: Any) -> str:
             f"No canonical payload registered for {family} v{version}. "
             f"Known versions: {_VERSIONS.get(family, ())}"
         )
-    fields = _strip(record._raw, _unsigned_fields(family))
+    fields = _strip(record._raw, _unsigned_fields(family), nested_unsigned_fields(family))
     for name in _UNORDERED_FIELDS.get(family, frozenset()):
         if isinstance(fields.get(name), list):
             fields[name] = sorted(fields[name], key=_element_key)
@@ -329,7 +353,7 @@ def unsigned_field_paths(record: Record) -> list[str]:
 
     A field is listed when its value is not ``None`` and either the family
     leaves it out (the signature fields, the family's ``UNSIGNED_FIELDS``) or
-    ``_NESTED_UNSIGNED_FIELDS`` names its path (``eval_result.scores.reason``).
+    the family's nested table names its path (``eval_result.scores.reason``).
     A field inside an unsigned parent is not listed again. This walks the
     record exactly as ``_strip`` does, so every path returned is absent from
     ``canonical_payload``. A record with no family has no signature rule and
@@ -338,6 +362,8 @@ def unsigned_field_paths(record: Record) -> list[str]:
     if record.family is None:
         return []
     found: set[str] = set()
+
+    nested = nested_unsigned_fields(record.family)
 
     def walk(value: Any, unsigned: frozenset[str], path: tuple[str, ...]) -> None:
         if isinstance(value, dict):
@@ -348,7 +374,7 @@ def unsigned_field_paths(record: Record) -> list[str]:
                 if k in unsigned:
                     found.add(".".join(sub))
                 else:
-                    walk(v, _NESTED_UNSIGNED_FIELDS.get(sub, frozenset()), sub)
+                    walk(v, nested.get(sub, frozenset()), sub)
         elif isinstance(value, list):
             for v in value:
                 walk(v, unsigned, path)

@@ -41,6 +41,36 @@ _MANIFEST = {
 }
 OVERRIDES: dict[str, object] = {
     "TombstoneRecord": {"reason": "right to erasure"},
+    "DatasetRowsRevealRecord": {"row_indexes": [3, 1]},
+    # A consistent enforce-mode block. The two outcomes and the two policies are
+    # listed out of order on purpose: both lists are unordered in the signature.
+    "GuardDecisionRecord": {
+        "policies": ["pii", "jailbreak"],
+        "policy_outcomes": [
+            {
+                "policy_id": "pii",
+                "status": "evaluated",
+                "passed": False,
+                "failure_mode": "PII_DETECTED",
+            },
+            {
+                "policy_id": "jailbreak",
+                "status": "not_evaluated",
+                "not_evaluated_reason": "SHORT_CIRCUITED",
+            },
+        ],
+        "verdict": "block",
+        "mode": "enforce",
+        "action_in_effect": "block",
+        "configured_action": "block",
+        "degraded": False,
+        "degraded_reason": None,
+        "policy_set_digest": "a" * 64,
+        "guard_config_digest": "b" * 64,
+        "controlbook_digest": "c" * 64,
+        "text_commitment": "d" * 64,
+        "context_commitment": "e" * 64,
+    },
     "CertificationRecord": {"evidence_pack_id": "pack-1"},
     "BehaviourManifestRecord": _MANIFEST,
     "CallSetManifestRecord": _MANIFEST,
@@ -109,6 +139,8 @@ class _Filler:
                 return "hmac-sha256:" + "a" * 64
             if name == "outcome":
                 return "completed"
+            if name == "sample_basis":
+                return "HEAD"
             if self.current == "CaseSkip" and name == "reason":
                 return "SKIPPED_X"
             if name == "mode" and self.current == "BehaviourDeviationRecord":
@@ -145,8 +177,12 @@ class _Filler:
     def model(self, cls, extra: dict | None = None):
         kwargs: dict = {}
         outer, self.current = self.current, cls.__name__
+        override = OVERRIDES.get(cls.__name__, {})
+        if callable(override):
+            override = override((extra or {}).get("payload_version", 0))
         for name, field in cls.model_fields.items():
-            if name in _BOOKKEEPING:
+            # An overridden field is never filled: its nested model may refuse the filler's values.
+            if name in _BOOKKEEPING or name in override:
                 continue
             self.current = cls.__name__
             if name == "payload_version" and field.default is not PydanticUndefined:
@@ -154,9 +190,6 @@ class _Filler:
             else:
                 kwargs[name] = self.value(field.annotation, name)
         self.current = outer
-        override = OVERRIDES.get(cls.__name__, {})
-        if callable(override):
-            override = override((extra or {}).get("payload_version", 0))
         kwargs.update(override)
         kwargs.update(extra or {})
         return cls(**kwargs)

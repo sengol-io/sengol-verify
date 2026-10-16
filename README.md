@@ -176,8 +176,11 @@ JSON the signatures are computed over). This is enforced by a test that imports 
 ## Scope
 
 This tool implements the offline bundle format as of `payload_registry.py`
-in sengol at the time it was vendored, including the call-start and
-accepted-set-lease families. It registers only families sengol signs: the
+in sengol at the time it was vendored, including the call-start,
+accepted-set-lease, guard-decision (`sengol.guard.decision`) and dataset-rows-reveal
+(`sengol.audit.dataset_rows_reveal`) families. It verifies the signed commitment values of a
+guard decision as part of the record; it does not recompute a text or context commitment, because
+a bundle carries neither the text nor its nonce. It registers only families sengol signs: the
 families sengol has stopped signing (agent registration and secret records,
 retention and legal-hold records, signed regression retirements and waivers,
 and the like) are not registered. A bundle record whose `record_type` is not

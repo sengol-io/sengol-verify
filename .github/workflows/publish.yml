@@ -7,6 +7,11 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      testpypi:
+        description: Publish to TestPyPI instead of PyPI (proves the OIDC exchange only)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -28,5 +33,11 @@ jobs:
           assert not any(r.split()[0].lower().startswith("sengol") for r in reqs), reqs
           print("requires:", reqs)
           PY
+      # TestPyPI needs its own pending publisher at test.pypi.org (same repo,
+      # workflow file name and no environment).
+      - name: Publish to TestPyPI
+        if: inputs.testpypi
+        run: uv publish --publish-url https://test.pypi.org/legacy/
       - name: Publish
+        if: ${{ !inputs.testpypi }}
         run: uv publish

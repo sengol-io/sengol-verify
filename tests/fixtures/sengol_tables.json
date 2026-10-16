@@ -49,6 +49,9 @@
     "CertificationSupersessionRecord": [
       1
     ],
+    "DatasetRowsRevealRecord": [
+      1
+    ],
     "DeploymentAuthorizationRecord": [
       1
     ],
@@ -68,6 +71,9 @@
     "GoldScoreRecord": [
       1,
       2
+    ],
+    "GuardDecisionRecord": [
+      1
     ],
     "JudgeModelCard": [
       1,
@@ -107,6 +113,7 @@
     "sengol.agent.call": "AgentCallRecord",
     "sengol.agent.tier_change": "AgentTierChangeRecord",
     "sengol.audit.certification_anchor": "CertificationAnchorRecord",
+    "sengol.audit.dataset_rows_reveal": "DatasetRowsRevealRecord",
     "sengol.audit.tombstone": "TombstoneRecord",
     "sengol.audit.trace_reveal": "TraceRevealRecord",
     "sengol.authorization.decision": "AuthorizationDecisionRecord",
@@ -116,6 +123,7 @@
     "sengol.certification.revocation": "CertificationRevocationRecord",
     "sengol.certification.supersession": "CertificationSupersessionRecord",
     "sengol.gateway.usage": "GatewayUsageRecord",
+    "sengol.guard.decision": "GuardDecisionRecord",
     "sengol.judge.model_card": "JudgeModelCard",
     "sengol.judge.promotion_decision": "PromotionDecisionRecord",
     "sengol.lifecycle.deployment_authorization": "DeploymentAuthorizationRecord",
@@ -199,6 +207,11 @@
       "hmac_signature",
       "signing_backend"
     ],
+    "DatasetRowsRevealRecord": [
+      "call_signature_manifests",
+      "hmac_signature",
+      "signing_backend"
+    ],
     "DeploymentAuthorizationRecord": [
       "call_signature_manifests",
       "hmac_signature",
@@ -218,6 +231,12 @@
       "signing_backend"
     ],
     "GoldScoreRecord": [
+      "hmac_signature",
+      "signing_backend"
+    ],
+    "GuardDecisionRecord": [
+      "call_signature_manifests",
+      "eval_result",
       "hmac_signature",
       "signing_backend"
     ],
@@ -278,6 +297,9 @@
     "CertificationSupersessionRecord": [
       "supersedes"
     ],
+    "DatasetRowsRevealRecord": [
+      "row_indexes"
+    ],
     "EvaluationCaseRecord": [
       "scores",
       "skipped"
@@ -285,10 +307,15 @@
     "EvaluationRunRecord": [
       "evaluator_manifest"
     ],
+    "GuardDecisionRecord": [
+      "policies",
+      "policy_outcomes"
+    ],
     "SoDDecisionRecord": [
       "approval_record_ids"
     ],
     "TombstoneRecord": [
+      "purged_dataset_ids",
       "purged_trace_ids"
     ]
   },
@@ -348,6 +375,12 @@
       ]
     },
     "CertificationSupersessionRecord": {
+      "eval_result.scores": [
+        "reason",
+        "reason_status"
+      ]
+    },
+    "DatasetRowsRevealRecord": {
       "eval_result.scores": [
         "reason",
         "reason_status"

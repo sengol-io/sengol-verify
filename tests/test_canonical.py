@@ -206,6 +206,10 @@ def test_every_audit_subtype_maps_to_its_own_family():
     assert family_for({"record_type": "sengol.audit.trace_reveal"}) == "TraceRevealRecord"
     assert family_for({"record_type": "sengol.agent.tier_change"}) == "AgentTierChangeRecord"
     assert family_for({"record_type": "sengol.sod.decision"}) == "SoDDecisionRecord"
+    assert family_for({"record_type": "sengol.guard.decision"}) == "GuardDecisionRecord"
+    assert (
+        family_for({"record_type": "sengol.audit.dataset_rows_reveal"}) == "DatasetRowsRevealRecord"
+    )
     assert family_for({}) == "AuditRecord"
     assert family_for({"record_type": None}) == "AuditRecord"
 
@@ -410,3 +414,64 @@ def test_families_sengol_no_longer_signs_are_not_registered(family):
     assert family not in canonical._UNORDERED_FIELDS
     with pytest.raises(UnknownPayloadVersion):
         Record({"payload_version": 1}, family).canonical_payload()
+
+
+def _guard(**over):
+    raw = {
+        "record_type": "sengol.guard.decision",
+        "payload_version": 1,
+        "tenant_id": "t",
+        "agent_id": "a",
+        "guard_id": "g",
+        "policies": ["pii", "jailbreak"],
+        "policy_outcomes": [
+            {"policy_id": "pii", "status": "evaluated", "passed": False, "failure_mode": "PII"},
+            {"policy_id": "jailbreak", "status": "not_evaluated", "not_evaluated_reason": "SKIP"},
+        ],
+        "eval_result": {"overall_passed": False, "scores": []},
+        "hmac_signature": "x",
+    }
+    raw.update(over)
+    return raw
+
+
+def _payload(raw):
+    from sengol_verify.canonical import Record, family_for
+
+    return Record(raw, family_for(raw)).canonical_payload()
+
+
+def test_guard_decision_signs_its_policy_lists_as_sets():
+    swapped = _guard(policies=["jailbreak", "pii"])
+    swapped["policy_outcomes"] = list(reversed(swapped["policy_outcomes"]))
+    assert _payload(_guard()) == _payload(swapped)
+
+
+def test_guard_decision_leaves_eval_result_unsigned_and_signs_everything_else():
+    assert _payload(_guard()) == _payload(_guard(eval_result={"overall_passed": True}))
+    assert _payload(_guard()) != _payload(_guard(verdict="block"))
+
+
+def test_an_unregistered_optional_field_is_signed_not_dropped():
+    # ADR-0149 adds optional fields (controlbook_provenance, ...) to existing families; a
+    # verifier that dropped one would fail a genuine record, and one that ignored a changed
+    # value would pass a forged one.
+    base = _payload(_guard())
+    assert _payload(_guard(controlbook_provenance="approved")) != base
+    assert _payload(_guard(controlbook_provenance="approved")) != _payload(
+        _guard(controlbook_provenance="unverified-local")
+    )
+
+
+def test_tombstone_signs_purged_dataset_ids_as_a_set():
+    def tomb(ids):
+        return {
+            "record_type": "sengol.audit.tombstone",
+            "payload_version": 2,
+            "tenant_id": "t",
+            "agent_id": "a",
+            "purged_trace_ids": ["x"],
+            "purged_dataset_ids": ids,
+        }
+
+    assert _payload(tomb(["d1", "d2"])) == _payload(tomb(["d2", "d1"]))

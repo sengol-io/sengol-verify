@@ -152,6 +152,7 @@ RECORD_TYPE_TO_FAMILY: dict[str, str] = {
     "sengol.agent.call": "AgentCallRecord",
     "sengol.agent.tier_change": "AgentTierChangeRecord",
     "sengol.audit.certification_anchor": "CertificationAnchorRecord",
+    "sengol.audit.dataset_rows_reveal": "DatasetRowsRevealRecord",
     "sengol.audit.tombstone": "TombstoneRecord",
     "sengol.audit.trace_reveal": "TraceRevealRecord",
     "sengol.authorization.decision": "AuthorizationDecisionRecord",
@@ -161,6 +162,7 @@ RECORD_TYPE_TO_FAMILY: dict[str, str] = {
     "sengol.certification.revocation": "CertificationRevocationRecord",
     "sengol.certification.supersession": "CertificationSupersessionRecord",
     "sengol.gateway.usage": "GatewayUsageRecord",
+    "sengol.guard.decision": "GuardDecisionRecord",
     "sengol.judge.model_card": "JudgeModelCard",
     "sengol.judge.promotion_decision": "PromotionDecisionRecord",
     "sengol.lifecycle.deployment_authorization": "DeploymentAuthorizationRecord",
@@ -220,11 +222,13 @@ _VERSIONS: dict[str, tuple[int, ...]] = {
     "CertificationRecord": (2, 3, 4),
     "CertificationRevocationRecord": (1,),
     "CertificationSupersessionRecord": (1,),
+    "DatasetRowsRevealRecord": (1,),
     "DeploymentAuthorizationRecord": (1,),
     "EvaluationCaseRecord": (1,),
     "EvaluationRunRecord": (2, 3, 4, 5, 6),
     "GatewayUsageRecord": (1,),
     "GoldScoreRecord": (1, 2),
+    "GuardDecisionRecord": (1,),
     "JudgeModelCard": (1, 2),
     "ProductionFailureRecord": (1,),
     "PromotionDecisionRecord": (1, 2),
@@ -250,6 +254,7 @@ _UNSIGNED_FIELDS: dict[str, frozenset[str]] = {
     "AuthorizationDecisionRecord": frozenset(
         {"eval_result", "mcp_server_version", "model", "input_tokens", "output_tokens", "cost_usd"}
     ),
+    "GuardDecisionRecord": frozenset({"eval_result"}),
     "SaturationEvent": frozenset({"remediated_at"}),
     "CertificationRecord": frozenset({"anchor_record_id", "evidence_pack_id"}),
 }
@@ -276,10 +281,12 @@ _UNORDERED_FIELDS: dict[str, frozenset[str]] = {
         {"acknowledged_unversioned", "endpoint_equivalents", "environment_mounts", "supersedes"}
     ),
     "CertificationSupersessionRecord": frozenset({"supersedes"}),
+    "DatasetRowsRevealRecord": frozenset({"row_indexes"}),
     "EvaluationCaseRecord": frozenset({"scores", "skipped"}),
     "EvaluationRunRecord": frozenset({"evaluator_manifest"}),
+    "GuardDecisionRecord": frozenset({"policies", "policy_outcomes"}),
     "SoDDecisionRecord": frozenset({"approval_record_ids"}),
-    "TombstoneRecord": frozenset({"purged_trace_ids"}),
+    "TombstoneRecord": frozenset({"purged_dataset_ids", "purged_trace_ids"}),
 }
 
 

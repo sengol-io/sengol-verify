@@ -31,6 +31,12 @@ jobs:
           read_version() { python3 -c 'import sys, tomllib; print(tomllib.load(sys.stdin.buffer)["project"]["version"])'; }
           NEW=$(read_version < pyproject.toml)
           OLD=$(git show "origin/${BASE_REF}:pyproject.toml" | read_version)
+          # sengol-verify --version prints __version__, so it must track pyproject.toml.
+          RUNTIME=$(python3 -c 'import re; print(re.search(r"^__version__ = \"([^\"]+)\"", open("src/sengol_verify/__init__.py").read(), re.M).group(1))')
+          if [ "$RUNTIME" != "$NEW" ]; then
+            echo "::error::__version__ is ${RUNTIME} but pyproject.toml is ${NEW}; bump src/sengol_verify/__init__.py too."
+            exit 1
+          fi
           if [ "$NEW" = "$OLD" ]; then
             echo "version unchanged (${NEW}); this merge publishes nothing."
             exit 0

@@ -31,17 +31,17 @@ permissions:
 
 jobs:
   # A release creates its tag, and only tags matching v* are treated as owner
-  # authorized. Anything else, or a ref other than main, publishes nothing.
+  # authorized. A push or manual run must be on main; anything else publishes nothing.
   authorized-release:
     runs-on: ubuntu-latest
     steps:
       - name: Refuse a ref outside main and the v* tag namespace
         run: |
           set -euo pipefail
-          case "${GITHUB_REF}" in
-            refs/tags/v*) echo "release ref ${GITHUB_REF} is in the v* namespace" ;;
-            refs/heads/main) echo "run on main" ;;
-            *) echo "::error::${GITHUB_REF} is not main or a v* tag; refusing to publish."; exit 1 ;;
+          case "${GITHUB_EVENT_NAME}:${GITHUB_REF}" in
+            release:refs/tags/v*) echo "release ref ${GITHUB_REF} is in the v* namespace" ;;
+            push:refs/heads/main|workflow_dispatch:refs/heads/main) echo "${GITHUB_EVENT_NAME} on main" ;;
+            *) echo "::error::${GITHUB_EVENT_NAME} on ${GITHUB_REF} is not a v* release or a run on main; refusing to publish."; exit 1 ;;
           esac
 
   # Decides whether this run uploads to PyPI.

@@ -34,6 +34,12 @@ jobs:
             echo "version unchanged (${NEW}); this merge publishes nothing."
             exit 0
           fi
+          # publish.yml matches this exact spelling, so a PEP 440 alias such as
+          # 2.1.1-alpha1 would pass the checks below and then never publish.
+          if ! printf '%s' "$NEW" | grep -Eq '^[0-9]+(\.[0-9]+)*(a|b|rc)[0-9]+$'; then
+            echo "::error::${NEW} must be spelled like 2.1.1a1 (aN, bN or rcN) for publish.yml to publish it."
+            exit 1
+          fi
           uv run --no-project --with packaging python - "$OLD" "$NEW" <<'PY'
           import sys
           from packaging.version import Version

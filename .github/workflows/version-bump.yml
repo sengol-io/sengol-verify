@@ -1,9 +1,10 @@
 name: Version bump
 
 # A merge to main publishes the pyproject.toml version when it is a new
-# pre-release (publish.yml). A PR that changes the version must therefore carry
-# an aN/bN/rcN version that is higher than main's and not yet on PyPI. A PR that
-# leaves the version alone publishes nothing.
+# pre-release (publish.yml). A PR that changes the version must carry a version
+# that is higher than main's and not yet on PyPI: aN/bN/rcN to publish on merge,
+# or a stable version that a later v* release publishes. A PR that leaves the
+# version alone publishes nothing.
 
 on:
   pull_request:
@@ -36,16 +37,18 @@ jobs:
           fi
           # publish.yml matches this exact spelling, so a PEP 440 alias such as
           # 2.1.1-alpha1 would pass the checks below and then never publish.
-          if ! printf '%s' "$NEW" | grep -Eq '^[0-9]+(\.[0-9]+)*(a|b|rc)[0-9]+$'; then
-            echo "::error::${NEW} must be spelled like 2.1.1a1 (aN, bN or rcN) for publish.yml to publish it."
+          # A stable version is allowed: the v* release that publishes it needs it
+          # in pyproject.toml first, and publish.yml skips it on a push.
+          if ! printf '%s' "$NEW" | grep -Eq '^[0-9]+(\.[0-9]+)*((a|b|rc)[0-9]+)?$'; then
+            echo "::error::${NEW} must be spelled like 2.1.1a1 (aN, bN or rcN) or 2.1.1 for publish.yml to handle it."
             exit 1
           fi
           uv run --no-project --with packaging python - "$OLD" "$NEW" <<'PY'
           import sys
           from packaging.version import Version
           old, new = Version(sys.argv[1]), Version(sys.argv[2])
-          if not new.is_prerelease or new.dev is not None or new.post is not None:
-              sys.exit(f"::error::{new} is not an aN/bN/rcN pre-release, so publish.yml would skip it. Stable versions ship through a v* release.")
+          if new.dev is not None or new.post is not None:
+              sys.exit(f"::error::{new} is a dev or post release; use aN/bN/rcN or a stable version.")
           if new <= old:
               sys.exit(f"::error::{new} is not higher than {old} on the base branch.")
           PY

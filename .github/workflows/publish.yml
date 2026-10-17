@@ -1,11 +1,17 @@
 # Publishes sengol-verify to PyPI through a trusted publisher (OIDC): no API
 # token is stored anywhere. PyPI must list this repository, this workflow file
 # name and no environment as the trusted publisher for the project.
+#
+# A push to main publishes the pyproject.toml version when it is a pre-release
+# (aN, bN, rcN) that PyPI does not hold yet. A stable version ships only through
+# a v* release whose tag matches pyproject.toml.
 name: publish
 
 on:
   release:
     types: [published]
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       testpypi:
@@ -13,13 +19,72 @@ on:
         type: boolean
         default: false
 
+# Pushes to main share one group so a pending run is replaced by the newest.
+# Each release gets its own group, so a published release is never replaced.
+concurrency:
+  group: publish-${{ github.event_name == 'release' && github.run_id || 'main' }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
   id-token: write
 
 jobs:
+  # A release creates its tag, and only tags matching v* are treated as owner
+  # authorized. Anything else, or a ref other than main, publishes nothing.
+  authorized-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse a ref outside main and the v* tag namespace
+        run: |
+          set -euo pipefail
+          case "${GITHUB_REF}" in
+            refs/tags/v*) echo "release ref ${GITHUB_REF} is in the v* namespace" ;;
+            refs/heads/main) echo "run on main" ;;
+            *) echo "::error::${GITHUB_REF} is not main or a v* tag; refusing to publish."; exit 1 ;;
+          esac
+
+  # Decides whether this run uploads to PyPI.
+  version:
+    runs-on: ubuntu-latest
+    needs: authorized-release
+    outputs:
+      publish: ${{ steps.v.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve version
+        id: v
+        run: |
+          set -euo pipefail
+          PKG_VERSION=$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')
+          if [ "${GITHUB_EVENT_NAME}" = "release" ]; then
+            if [ "${GITHUB_REF_NAME#v}" != "${PKG_VERSION}" ]; then
+              echo "::error::tag ${GITHUB_REF_NAME} implies ${GITHUB_REF_NAME#v} but pyproject.toml is ${PKG_VERSION}."
+              exit 1
+            fi
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! printf '%s' "$PKG_VERSION" | grep -Eq '^[0-9]+(\.[0-9]+)*(a|b|rc)[0-9]+$'; then
+            echo "::notice::${PKG_VERSION} is not a pre-release (aN, bN, rcN); stable versions publish only through a v* release. Skipping."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          code=$(curl -s -o /dev/null -w '%{http_code}' "https://pypi.org/pypi/sengol-verify/${PKG_VERSION}/json")
+          case "$code" in
+            200) echo "::notice::sengol-verify ${PKG_VERSION} is already on PyPI; skipping."; echo "publish=false" >> "$GITHUB_OUTPUT" ;;
+            404) echo "publish=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::PyPI lookup returned HTTP ${code}."; exit 1 ;;
+          esac
+
   publish:
     runs-on: ubuntu-latest
+    needs: version
+    if: needs.version.outputs.publish == 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -38,6 +103,7 @@ jobs:
       - name: Publish to TestPyPI
         if: inputs.testpypi
         run: uv publish --publish-url https://test.pypi.org/legacy/
+      # --check-url skips files PyPI already holds, so a re-run does not fail.
       - name: Publish
         if: ${{ !inputs.testpypi }}
-        run: uv publish
+        run: uv publish --check-url https://pypi.org/simple/

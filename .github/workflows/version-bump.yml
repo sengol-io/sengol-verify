@@ -1,0 +1,51 @@
+name: Version bump
+
+# A merge to main publishes the pyproject.toml version when it is a new
+# pre-release (publish.yml). A PR that changes the version must therefore carry
+# an aN/bN/rcN version that is higher than main's and not yet on PyPI. A PR that
+# leaves the version alone publishes nothing.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  version-bump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v5
+      - name: Check a changed version is an unpublished, higher pre-release
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          read_version() { python3 -c 'import sys, tomllib; print(tomllib.load(sys.stdin.buffer)["project"]["version"])'; }
+          NEW=$(read_version < pyproject.toml)
+          OLD=$(git show "origin/${BASE_REF}:pyproject.toml" | read_version)
+          if [ "$NEW" = "$OLD" ]; then
+            echo "version unchanged (${NEW}); this merge publishes nothing."
+            exit 0
+          fi
+          uv run --no-project --with packaging python - "$OLD" "$NEW" <<'PY'
+          import sys
+          from packaging.version import Version
+          old, new = Version(sys.argv[1]), Version(sys.argv[2])
+          if not new.is_prerelease or new.dev is not None or new.post is not None:
+              sys.exit(f"::error::{new} is not an aN/bN/rcN pre-release, so publish.yml would skip it. Stable versions ship through a v* release.")
+          if new <= old:
+              sys.exit(f"::error::{new} is not higher than {old} on the base branch.")
+          PY
+          code=$(curl -s -o /dev/null -w '%{http_code}' "https://pypi.org/pypi/sengol-verify/${NEW}/json")
+          case "$code" in
+            200) echo "::error::sengol-verify ${NEW} is already on PyPI; pick an unpublished version."; exit 1 ;;
+            404) echo "${OLD} -> ${NEW} is unpublished." ;;
+            *) echo "::error::PyPI lookup returned HTTP ${code}."; exit 1 ;;
+          esac

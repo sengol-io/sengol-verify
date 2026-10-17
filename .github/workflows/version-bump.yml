@@ -1,0 +1,66 @@
+name: Version bump
+
+# A merge to main publishes the pyproject.toml version when it is a new
+# pre-release (publish.yml). A PR that changes the version must carry a version
+# that is higher than main's and not yet on PyPI: aN/bN/rcN to publish on merge,
+# or a stable version that a later v* release publishes. A PR that leaves the
+# version alone publishes nothing.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  version-bump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v5
+      - name: Check a changed version is an unpublished, higher pre-release
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          read_version() { python3 -c 'import sys, tomllib; print(tomllib.load(sys.stdin.buffer)["project"]["version"])'; }
+          NEW=$(read_version < pyproject.toml)
+          OLD=$(git show "origin/${BASE_REF}:pyproject.toml" | read_version)
+          # sengol-verify --version prints __version__, so it must track pyproject.toml.
+          RUNTIME=$(python3 -c 'import re; print(re.search(r"^__version__ = \"([^\"]+)\"", open("src/sengol_verify/__init__.py").read(), re.M).group(1))')
+          if [ "$RUNTIME" != "$NEW" ]; then
+            echo "::error::__version__ is ${RUNTIME} but pyproject.toml is ${NEW}; bump src/sengol_verify/__init__.py too."
+            exit 1
+          fi
+          if [ "$NEW" = "$OLD" ]; then
+            echo "version unchanged (${NEW}); this merge publishes nothing."
+            exit 0
+          fi
+          # publish.yml matches this exact spelling, so a PEP 440 alias such as
+          # 2.1.1-alpha1 would pass the checks below and then never publish.
+          # A stable version is allowed: the v* release that publishes it needs it
+          # in pyproject.toml first, and publish.yml skips it on a push.
+          if ! printf '%s' "$NEW" | grep -Eq '^[0-9]+(\.[0-9]+)*((a|b|rc)[0-9]+)?$'; then
+            echo "::error::${NEW} must be spelled like 2.1.1a1 (aN, bN or rcN) or 2.1.1 for publish.yml to handle it."
+            exit 1
+          fi
+          uv run --no-project --with packaging python - "$OLD" "$NEW" <<'PY'
+          import sys
+          from packaging.version import Version
+          old, new = Version(sys.argv[1]), Version(sys.argv[2])
+          if new.dev is not None or new.post is not None:
+              sys.exit(f"::error::{new} is a dev or post release; use aN/bN/rcN or a stable version.")
+          if new <= old:
+              sys.exit(f"::error::{new} is not higher than {old} on the base branch.")
+          PY
+          code=$(curl -s -o /dev/null -w '%{http_code}' "https://pypi.org/pypi/sengol-verify/${NEW}/json")
+          case "$code" in
+            200) echo "::error::sengol-verify ${NEW} is already on PyPI; pick an unpublished version."; exit 1 ;;
+            404) echo "${OLD} -> ${NEW} is unpublished." ;;
+            *) echo "::error::PyPI lookup returned HTTP ${code}."; exit 1 ;;
+          esac

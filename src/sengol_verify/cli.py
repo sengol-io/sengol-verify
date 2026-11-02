@@ -8,7 +8,8 @@ import sys
 from pathlib import Path
 
 from sengol_verify import __version__
-from sengol_verify.bundle import BundleFormatError
+from sengol_verify.bundle import BundleFormatError, load_bundle
+from sengol_verify.origins import otlp_call_origins
 from sengol_verify.verify import verify_bundle_file
 
 #: Exit codes, identical to ``sengol audit verify --offline``.
@@ -109,7 +110,7 @@ def _trust_notice(result, trusted: bool) -> str | None:
     return _UNCOUNTERSIGNED_NOTICE if trusted else _UNPINNED_NOTICE
 
 
-def _print_human(path: Path, result, trusted: bool) -> None:
+def _print_human(path: Path, result, trusted: bool, origins: dict | None = None) -> None:
     print(f"sengol-verify: {path}")
     for step in result.step_results:
         print(f"  [{step.result:12}] {step.check} ({step.scope})")
@@ -118,10 +119,15 @@ def _print_human(path: Path, result, trusted: bool) -> None:
     notice = _trust_notice(result, trusted)
     if notice:
         print(f"\n{notice}", file=sys.stderr)
+    for rid, origin in (origins or {}).items():
+        print(
+            f"OTLP call record {rid}: vouched by {origin} "
+            "(an id match only; trust it as far as the steps above verified)"
+        )
     print(f"\nVerdict: {result.verdict}")
 
 
-def _print_json(path: Path, result, trusted: bool) -> None:
+def _print_json(path: Path, result, trusted: bool, origins: dict | None = None) -> None:
     print(
         json.dumps(
             {
@@ -129,6 +135,7 @@ def _print_json(path: Path, result, trusted: bool) -> None:
                 "verdict": result.verdict,
                 "trusted_key_supplied": trusted,
                 "countersignature_trust_established": _countersig_established(result),
+                "otlp_call_origins": origins or {},
                 "steps": [
                     {
                         "check": s.check,
@@ -184,6 +191,17 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="JSON object {key_id: pem} of trusted Ed25519 public keys, obtained out of band",
     )
+    parser.add_argument(
+        "--collector-secret-id",
+        action="append",
+        default=[],
+        metavar="SECRET_ID",
+        help=(
+            "A collector secret id. Repeatable. Names each OTLP call record whose id "
+            "derives from that collector (or from the install tenant). An id match "
+            "only; it is not one of the verification steps."
+        ),
+    )
     parser.add_argument("--version", action="version", version=f"sengol-verify {__version__}")
     return parser
 
@@ -208,13 +226,18 @@ def main(argv: list = None) -> int:
         return EXIT_USAGE
 
     trusted = trusted_keys is not None
+    origins: dict = {}
+    if args.collector_secret_id and _exit_code(result) != EXIT_FAIL:
+        origins = otlp_call_origins(
+            load_bundle(args.bundle).get("records", []), args.collector_secret_id
+        )
     if args.json:
-        _print_json(args.bundle, result, trusted)
+        _print_json(args.bundle, result, trusted, origins)
         notice = _trust_notice(result, trusted)
         if notice:
             print(notice, file=sys.stderr)
     else:
-        _print_human(args.bundle, result, trusted)
+        _print_human(args.bundle, result, trusted, origins)
 
     return _exit_code(result)
 

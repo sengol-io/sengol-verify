@@ -8,8 +8,9 @@ import sys
 from pathlib import Path
 
 from sengol_verify import __version__
-from sengol_verify.bundle import BundleFormatError
-from sengol_verify.verify import verify_bundle_file
+from sengol_verify.bundle import BundleFormatError, load_bundle
+from sengol_verify.origins import otlp_call_origins
+from sengol_verify.verify import verify_bundle
 
 #: Exit codes, identical to ``sengol audit verify --offline``.
 EXIT_OK = 0
@@ -102,33 +103,39 @@ def _exit_code(result) -> int:
     return EXIT_OK
 
 
-def _trust_notice(result, trusted: bool) -> str | None:
+def _trust_notice(result, key_given: bool) -> str | None:
     """The stderr message naming why exit 3 was chosen, or None."""
     if _exit_code(result) != EXIT_TRUST_NOT_ESTABLISHED:
         return None
-    return _UNCOUNTERSIGNED_NOTICE if trusted else _UNPINNED_NOTICE
+    return _UNCOUNTERSIGNED_NOTICE if key_given else _UNPINNED_NOTICE
 
 
-def _print_human(path: Path, result, trusted: bool) -> None:
+def _print_human(path: Path, result, key_given: bool, origins: dict | None = None) -> None:
     print(f"sengol-verify: {path}")
     for step in result.step_results:
         print(f"  [{step.result:12}] {step.check} ({step.scope})")
         if step.detail:
             print(f"               {step.detail}")
-    notice = _trust_notice(result, trusted)
+    notice = _trust_notice(result, key_given)
     if notice:
         print(f"\n{notice}", file=sys.stderr)
+    for rid, origin in (origins or {}).items():
+        print(
+            f"OTLP call record {rid}: vouched by {origin} "
+            "(an id match only; trust it as far as the steps above verified)"
+        )
     print(f"\nVerdict: {result.verdict}")
 
 
-def _print_json(path: Path, result, trusted: bool) -> None:
+def _print_json(path: Path, result, key_given: bool, origins: dict | None = None) -> None:
     print(
         json.dumps(
             {
                 "bundle": str(path),
                 "verdict": result.verdict,
-                "trusted_key_supplied": trusted,
+                "trusted_key_supplied": key_given,
                 "countersignature_trust_established": _countersig_established(result),
+                "otlp_call_origins": origins,
                 "steps": [
                     {
                         "check": s.check,
@@ -184,6 +191,18 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="JSON object {key_id: pem} of trusted Ed25519 public keys, obtained out of band",
     )
+    parser.add_argument(
+        "--collector-secret-id",
+        dest="collector_ids",
+        action="append",
+        default=[],
+        metavar="ID",
+        help=(
+            "A collector secret id. Repeatable. Names each OTLP call record whose id "
+            "derives from that collector (or from the install tenant). An id match "
+            "only; it is not one of the verification steps."
+        ),
+    )
     parser.add_argument("--version", action="version", version=f"sengol-verify {__version__}")
     return parser
 
@@ -202,19 +221,40 @@ def main(argv: list = None) -> int:
         return EXIT_USAGE
 
     try:
-        result = verify_bundle_file(args.bundle, trusted_keys=trusted_keys)
+        # One load feeds the verification and the origin match below.
+        bundle = load_bundle(args.bundle)
+        result = verify_bundle(
+            bundle, portable="judge_evidence_pack" in bundle, trusted_keys=trusted_keys
+        )
     except BundleFormatError as exc:
         print(f"sengol-verify: {exc}", file=sys.stderr)
         return EXIT_USAGE
 
-    trusted = trusted_keys is not None
+    key_given = bool(args.trusted_key) or args.trusted_keys_file is not None
+    # None means the match did not run: no collector id was given, or it was skipped.
+    origins: dict | None = None
+    # Names are given only when every record's payload hash was checked against a
+    # countersignature, so a record nothing covers is never attributed.
+    hashes_checked = any(
+        st.check == "payload_hash_integrity" and st.result == "PASS" for st in result.step_results
+    )
+    skipped = bool(args.collector_ids) and not (_exit_code(result) != EXIT_FAIL and hashes_checked)
+    if args.collector_ids and not skipped:
+        origins = otlp_call_origins(bundle.get("records", []), args.collector_ids)
+    if skipped:
+        print(
+            "sengol-verify: OTLP call records were not attributed: a step failed or not every "
+            "record's payload hash was checked against a countersignature, so "
+            "no record is named for a collector (this is not a finding that none match)",
+            file=sys.stderr,
+        )
     if args.json:
-        _print_json(args.bundle, result, trusted)
-        notice = _trust_notice(result, trusted)
+        _print_json(args.bundle, result, key_given, origins)
+        notice = _trust_notice(result, key_given)
         if notice:
             print(notice, file=sys.stderr)
     else:
-        _print_human(args.bundle, result, trusted)
+        _print_human(args.bundle, result, key_given, origins)
 
     return _exit_code(result)
 

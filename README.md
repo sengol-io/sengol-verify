@@ -113,6 +113,20 @@ sengol-verify bundle.zip --trusted-key appliance-key-1=appliance.pub.pem
 sengol-verify bundle.json --trusted-key ... --json   # machine-readable
 ```
 
+### Naming OTLP call records
+
+A trace sent to Sengol over OTLP, without the SDK, gets a call record the server
+writes. Its id is `uuid5(1b5e830e-c29f-446c-a99a-8d58d9cfb321, "<scope>:<agent_id>:<trace_id>:<span_id>")`,
+where `<scope>` is the tenant id, or `<tenant id>|collector=<secret id>` when a
+collector's token sent the trace. `--collector-secret-id SECRET_ID` (repeatable)
+prints which records carry an id derived for that collector, or for the tenant
+(`server`). It is an id match, not a verification step: it changes no exit
+code, runs only when no step failed and the payload hash of every record was checked
+against a countersignature, and says who the server derived the id for,
+not that the app sent the call. `--json` reports `"otlp_call_origins": null` when the match did not run (no
+`--collector-secret-id`, or it was skipped, in which case a stderr line says so);
+an empty object means the match ran and no record matched.
+
 ### Trusting the countersignature key
 
 A bundle's own `public_keys` is part of the file being checked: someone who

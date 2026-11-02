@@ -18,9 +18,7 @@ __all__ = ["OTLP_CALL_NAMESPACE", "otlp_call_origins"]
 OTLP_CALL_NAMESPACE = UUID("1b5e830e-c29f-446c-a99a-8d58d9cfb321")
 
 
-def otlp_call_origins(
-    records: Iterable[dict], collector_ids: Iterable[str] = ()
-) -> dict[str, str]:
+def otlp_call_origins(records: Iterable[dict], collector_ids: Iterable[str] = ()) -> dict[str, str]:
     """``{record_id: origin}`` for each bundle record whose id was derived.
 
     ``origin`` is ``server`` when the id derives from the record's tenant, and

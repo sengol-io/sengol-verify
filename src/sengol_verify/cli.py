@@ -196,7 +196,7 @@ def build_parser() -> argparse.ArgumentParser:
         dest="collector_ids",
         action="append",
         default=[],
-        metavar="SECRET_ID",
+        metavar="ID",
         help=(
             "A collector secret id. Repeatable. Names each OTLP call record whose id "
             "derives from that collector (or from the install tenant). An id match "
@@ -229,9 +229,7 @@ def main(argv: list = None) -> int:
     trusted = trusted_keys is not None
     origins: dict = {}
     if args.collector_ids and _exit_code(result) != EXIT_FAIL:
-        origins = otlp_call_origins(
-            load_bundle(args.bundle).get("records", []), args.collector_ids
-        )
+        origins = otlp_call_origins(load_bundle(args.bundle).get("records", []), args.collector_ids)
     if args.json:
         _print_json(args.bundle, result, trusted, origins)
         notice = _trust_notice(result, trusted)

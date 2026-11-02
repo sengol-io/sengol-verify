@@ -103,20 +103,20 @@ def _exit_code(result) -> int:
     return EXIT_OK
 
 
-def _trust_notice(result, trusted: bool) -> str | None:
+def _trust_notice(result, key_given: bool) -> str | None:
     """The stderr message naming why exit 3 was chosen, or None."""
     if _exit_code(result) != EXIT_TRUST_NOT_ESTABLISHED:
         return None
-    return _UNCOUNTERSIGNED_NOTICE if trusted else _UNPINNED_NOTICE
+    return _UNCOUNTERSIGNED_NOTICE if key_given else _UNPINNED_NOTICE
 
 
-def _print_human(path: Path, result, trusted: bool, origins: dict | None = None) -> None:
+def _print_human(path: Path, result, key_given: bool, origins: dict | None = None) -> None:
     print(f"sengol-verify: {path}")
     for step in result.step_results:
         print(f"  [{step.result:12}] {step.check} ({step.scope})")
         if step.detail:
             print(f"               {step.detail}")
-    notice = _trust_notice(result, trusted)
+    notice = _trust_notice(result, key_given)
     if notice:
         print(f"\n{notice}", file=sys.stderr)
     for rid, origin in (origins or {}).items():
@@ -127,13 +127,13 @@ def _print_human(path: Path, result, trusted: bool, origins: dict | None = None)
     print(f"\nVerdict: {result.verdict}")
 
 
-def _print_json(path: Path, result, trusted: bool, origins: dict | None = None) -> None:
+def _print_json(path: Path, result, key_given: bool, origins: dict | None = None) -> None:
     print(
         json.dumps(
             {
                 "bundle": str(path),
                 "verdict": result.verdict,
-                "trusted_key_supplied": trusted,
+                "trusted_key_supplied": key_given,
                 "countersignature_trust_established": _countersig_established(result),
                 "otlp_call_origins": origins or {},
                 "steps": [
@@ -226,17 +226,17 @@ def main(argv: list = None) -> int:
         print(f"sengol-verify: {exc}", file=sys.stderr)
         return EXIT_USAGE
 
-    trusted = trusted_keys is not None
+    key_given = bool(args.trusted_key) or args.trusted_keys_file is not None
     origins: dict = {}
     if args.collector_ids and _exit_code(result) != EXIT_FAIL:
         origins = otlp_call_origins(load_bundle(args.bundle).get("records", []), args.collector_ids)
     if args.json:
-        _print_json(args.bundle, result, trusted, origins)
-        notice = _trust_notice(result, trusted)
+        _print_json(args.bundle, result, key_given, origins)
+        notice = _trust_notice(result, key_given)
         if notice:
             print(notice, file=sys.stderr)
     else:
-        _print_human(args.bundle, result, trusted, origins)
+        _print_human(args.bundle, result, key_given, origins)
 
     return _exit_code(result)
 

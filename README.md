@@ -121,7 +121,8 @@ where `<scope>` is the tenant id, or `<tenant id>|collector=<secret id>` when a
 collector's token sent the trace. `--collector-secret-id SECRET_ID` (repeatable)
 prints which records carry an id derived for that collector, or for the tenant
 (`server`). It is an id match, not a verification step: it changes no exit
-code, runs only when no step failed, and says who the server derived the id for,
+code, runs only when no step failed and the payload hash of every record was checked
+against a countersignature, and says who the server derived the id for,
 not that the app sent the call.
 
 ### Trusting the countersignature key

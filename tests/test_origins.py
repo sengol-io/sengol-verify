@@ -40,9 +40,12 @@ def test_an_sdk_record_and_a_record_without_a_span_are_absent():
     assert otlp_call_origins([sdk, bare], ["s1"]) == {}
 
 
-def _patch(monkeypatch, result: str, records: list):
-    step = StepResult("ed25519_countersig", "bundle", result, "")
-    monkeypatch.setattr(cli, "verify_bundle", lambda *a, **k: BundleResult([step]))
+def _patch(monkeypatch, result: str, records: list, hashes: str = "PASS"):
+    steps = [
+        StepResult("payload_hash_integrity", "bundle", hashes, ""),
+        StepResult("ed25519_countersig", "bundle", result, ""),
+    ]
+    monkeypatch.setattr(cli, "verify_bundle", lambda *a, **k: BundleResult(steps))
     monkeypatch.setattr(cli, "load_bundle", lambda p: {"records": records})
 
 
@@ -63,4 +66,12 @@ def test_the_cli_names_nobody_when_a_step_failed(tmp_path, monkeypatch, capsys):
     bundle.write_text("{}")
     code = cli.main([str(bundle), "--json", "--collector-secret-id", "s1"])
     assert code == 1
+    assert json.loads(capsys.readouterr().out)["otlp_call_origins"] == {}
+
+
+def test_the_cli_names_nobody_when_a_record_has_no_countersignature(tmp_path, monkeypatch, capsys):
+    _patch(monkeypatch, "PASS", [_rec(f"{TENANT}|collector=s1")], hashes="UNVERIFIABLE")
+    bundle = tmp_path / "b.json"
+    bundle.write_text("{}")
+    cli.main([str(bundle), "--json", "--collector-secret-id", "s1"])
     assert json.loads(capsys.readouterr().out)["otlp_call_origins"] == {}

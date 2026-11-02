@@ -232,7 +232,12 @@ def main(argv: list = None) -> int:
 
     key_given = bool(args.trusted_key) or args.trusted_keys_file is not None
     origins: dict = {}
-    if args.collector_ids and _exit_code(result) != EXIT_FAIL:
+    # Names are given only when every record's payload hash was checked against a
+    # countersignature, so a record nothing covers is never attributed.
+    hashes_checked = any(
+        st.check == "payload_hash_integrity" and st.result == "PASS" for st in result.step_results
+    )
+    if args.collector_ids and _exit_code(result) != EXIT_FAIL and hashes_checked:
         origins = otlp_call_origins(bundle.get("records", []), args.collector_ids)
     if args.json:
         _print_json(args.bundle, result, key_given, origins)

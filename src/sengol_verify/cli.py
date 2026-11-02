@@ -127,9 +127,7 @@ def _print_human(path: Path, result, key_given: bool, origins: dict | None = Non
     print(f"\nVerdict: {result.verdict}")
 
 
-def _print_json(
-    path: Path, result, key_given: bool, origins: dict | None = None, skipped: bool = False
-) -> None:
+def _print_json(path: Path, result, key_given: bool, origins: dict | None = None) -> None:
     print(
         json.dumps(
             {
@@ -137,7 +135,7 @@ def _print_json(
                 "verdict": result.verdict,
                 "trusted_key_supplied": key_given,
                 "countersignature_trust_established": _countersig_established(result),
-                "otlp_call_origins": None if skipped else (origins or {}),
+                "otlp_call_origins": origins,
                 "steps": [
                     {
                         "check": s.check,
@@ -233,7 +231,8 @@ def main(argv: list = None) -> int:
         return EXIT_USAGE
 
     key_given = bool(args.trusted_key) or args.trusted_keys_file is not None
-    origins: dict = {}
+    # None means the match did not run: no collector id was given, or it was skipped.
+    origins: dict | None = None
     # Names are given only when every record's payload hash was checked against a
     # countersignature, so a record nothing covers is never attributed.
     hashes_checked = any(
@@ -250,7 +249,7 @@ def main(argv: list = None) -> int:
             file=sys.stderr,
         )
     if args.json:
-        _print_json(args.bundle, result, key_given, origins, skipped)
+        _print_json(args.bundle, result, key_given, origins)
         notice = _trust_notice(result, key_given)
         if notice:
             print(notice, file=sys.stderr)

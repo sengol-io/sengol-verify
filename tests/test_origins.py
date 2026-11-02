@@ -79,3 +79,11 @@ def test_the_cli_names_nobody_when_a_record_has_no_countersignature(tmp_path, mo
     captured = capsys.readouterr()
     assert json.loads(captured.out)["otlp_call_origins"] is None
     assert "were not attributed" in captured.err
+
+
+def test_json_reports_null_origins_when_no_collector_id_was_given(tmp_path, monkeypatch, capsys):
+    _patch(monkeypatch, "PASS", [_rec(TENANT)])
+    bundle = tmp_path / "b.json"
+    bundle.write_text("{}")
+    cli.main([str(bundle), "--json"])
+    assert json.loads(capsys.readouterr().out)["otlp_call_origins"] is None

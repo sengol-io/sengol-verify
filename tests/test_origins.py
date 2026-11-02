@@ -42,7 +42,7 @@ def test_an_sdk_record_and_a_record_without_a_span_are_absent():
 
 def _patch(monkeypatch, result: str, records: list):
     step = StepResult("ed25519_countersig", "bundle", result, "")
-    monkeypatch.setattr(cli, "verify_bundle_file", lambda *a, **k: BundleResult([step]))
+    monkeypatch.setattr(cli, "verify_bundle", lambda *a, **k: BundleResult([step]))
     monkeypatch.setattr(cli, "load_bundle", lambda p: {"records": records})
 
 

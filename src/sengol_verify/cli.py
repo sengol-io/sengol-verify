@@ -10,7 +10,7 @@ from pathlib import Path
 from sengol_verify import __version__
 from sengol_verify.bundle import BundleFormatError, load_bundle
 from sengol_verify.origins import otlp_call_origins
-from sengol_verify.verify import verify_bundle_file
+from sengol_verify.verify import verify_bundle
 
 #: Exit codes, identical to ``sengol audit verify --offline``.
 EXIT_OK = 0
@@ -221,7 +221,11 @@ def main(argv: list = None) -> int:
         return EXIT_USAGE
 
     try:
-        result = verify_bundle_file(args.bundle, trusted_keys=trusted_keys)
+        # One load feeds the verification and the origin match below.
+        bundle = load_bundle(args.bundle)
+        result = verify_bundle(
+            bundle, portable="judge_evidence_pack" in bundle, trusted_keys=trusted_keys
+        )
     except BundleFormatError as exc:
         print(f"sengol-verify: {exc}", file=sys.stderr)
         return EXIT_USAGE
@@ -229,7 +233,7 @@ def main(argv: list = None) -> int:
     key_given = bool(args.trusted_key) or args.trusted_keys_file is not None
     origins: dict = {}
     if args.collector_ids and _exit_code(result) != EXIT_FAIL:
-        origins = otlp_call_origins(load_bundle(args.bundle).get("records", []), args.collector_ids)
+        origins = otlp_call_origins(bundle.get("records", []), args.collector_ids)
     if args.json:
         _print_json(args.bundle, result, key_given, origins)
         notice = _trust_notice(result, key_given)

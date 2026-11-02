@@ -66,7 +66,9 @@ def test_the_cli_names_nobody_when_a_step_failed(tmp_path, monkeypatch, capsys):
     bundle.write_text("{}")
     code = cli.main([str(bundle), "--json", "--collector-secret-id", "s1"])
     assert code == 1
-    assert json.loads(capsys.readouterr().out)["otlp_call_origins"] == {}
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["otlp_call_origins"] is None
+    assert "were not attributed" in captured.err
 
 
 def test_the_cli_names_nobody_when_a_record_has_no_countersignature(tmp_path, monkeypatch, capsys):
@@ -74,4 +76,6 @@ def test_the_cli_names_nobody_when_a_record_has_no_countersignature(tmp_path, mo
     bundle = tmp_path / "b.json"
     bundle.write_text("{}")
     cli.main([str(bundle), "--json", "--collector-secret-id", "s1"])
-    assert json.loads(capsys.readouterr().out)["otlp_call_origins"] == {}
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["otlp_call_origins"] is None
+    assert "were not attributed" in captured.err

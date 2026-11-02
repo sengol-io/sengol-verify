@@ -127,7 +127,9 @@ def _print_human(path: Path, result, key_given: bool, origins: dict | None = Non
     print(f"\nVerdict: {result.verdict}")
 
 
-def _print_json(path: Path, result, key_given: bool, origins: dict | None = None) -> None:
+def _print_json(
+    path: Path, result, key_given: bool, origins: dict | None = None, skipped: bool = False
+) -> None:
     print(
         json.dumps(
             {
@@ -135,7 +137,7 @@ def _print_json(path: Path, result, key_given: bool, origins: dict | None = None
                 "verdict": result.verdict,
                 "trusted_key_supplied": key_given,
                 "countersignature_trust_established": _countersig_established(result),
-                "otlp_call_origins": origins or {},
+                "otlp_call_origins": None if skipped else (origins or {}),
                 "steps": [
                     {
                         "check": s.check,
@@ -237,10 +239,18 @@ def main(argv: list = None) -> int:
     hashes_checked = any(
         st.check == "payload_hash_integrity" and st.result == "PASS" for st in result.step_results
     )
-    if args.collector_ids and _exit_code(result) != EXIT_FAIL and hashes_checked:
+    skipped = bool(args.collector_ids) and not (_exit_code(result) != EXIT_FAIL and hashes_checked)
+    if args.collector_ids and not skipped:
         origins = otlp_call_origins(bundle.get("records", []), args.collector_ids)
+    if skipped:
+        print(
+            "sengol-verify: OTLP call records were not attributed: a step failed or not every "
+            "record's payload hash was checked against a countersignature, so "
+            "no record is named for a collector (this is not a finding that none match)",
+            file=sys.stderr,
+        )
     if args.json:
-        _print_json(args.bundle, result, key_given, origins)
+        _print_json(args.bundle, result, key_given, origins, skipped)
         notice = _trust_notice(result, key_given)
         if notice:
             print(notice, file=sys.stderr)

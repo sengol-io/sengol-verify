@@ -123,7 +123,9 @@ prints which records carry an id derived for that collector, or for the tenant
 (`server`). It is an id match, not a verification step: it changes no exit
 code, runs only when no step failed and the payload hash of every record was checked
 against a countersignature, and says who the server derived the id for,
-not that the app sent the call.
+not that the app sent the call. When it is skipped, `--json` reports
+`"otlp_call_origins": null` and a stderr line says so; an empty object means the
+run happened and no record matched.
 
 ### Trusting the countersignature key
 

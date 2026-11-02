@@ -19,7 +19,7 @@ OTLP_CALL_NAMESPACE = UUID("1b5e830e-c29f-446c-a99a-8d58d9cfb321")
 
 
 def otlp_call_origins(
-    records: Iterable[dict], collector_secret_ids: Iterable[str] = ()
+    records: Iterable[dict], collector_ids: Iterable[str] = ()
 ) -> dict[str, str]:
     """``{record_id: origin}`` for each bundle record whose id was derived.
 
@@ -28,7 +28,7 @@ def otlp_call_origins(
     id. A record that matches none (an SDK record, or a secret id not
     supplied) is absent.
     """
-    secret_ids = list(collector_secret_ids)
+    collector_ids = list(collector_ids)
     origins: dict[str, str] = {}
     for rec in records:
         tenant, agent = rec.get("tenant_id"), rec.get("agent_id")
@@ -36,7 +36,7 @@ def otlp_call_origins(
         if not (tenant and agent and trace and span and rec.get("record_id")):
             continue
         scopes = [("server", tenant)] + [
-            (f"collector:{sid}", f"{tenant}|collector={sid}") for sid in secret_ids
+            (f"collector:{sid}", f"{tenant}|collector={sid}") for sid in collector_ids
         ]
         for origin, scope in scopes:
             derived = uuid5(OTLP_CALL_NAMESPACE, f"{scope}:{agent}:{trace}:{span}")
